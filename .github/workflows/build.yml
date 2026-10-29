@@ -1,0 +1,50 @@
+# Builds IEC61850ANALYZER_<version>.exe on Windows and attaches it to a GitHub Release
+# when a tag like v0.2.0 is pushed:   git tag v0.2.0 && git push origin v0.2.0
+# The program checks the newest release at start (updater.py) and offers the download.
+name: build-exe
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Tests
+        run: python tests/test_core.py
+
+      - name: Build exe (name with the version of sniffer.py)
+        shell: pwsh
+        run: |
+          $name = python exe_name.py
+          echo "EXENAME=$name" >> $env:GITHUB_ENV
+          pyinstaller --clean --onefile --windowed --name $name --hidden-import scapy.all --collect-submodules scapy sniffer.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.EXENAME }}
+          path: dist/${{ env.EXENAME }}.exe
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ env.EXENAME }}.exe
+          generate_release_notes: true

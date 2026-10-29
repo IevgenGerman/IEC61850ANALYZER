@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+.idea/
+.venv/
+venv/
+# customer / project data: never in the repository
+*.xlsm
+*.xlsx
+Library_example/
+captures/
