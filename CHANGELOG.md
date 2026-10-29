@@ -1,6 +1,7 @@
 # CHANGELOG
 
 ## v0.2.0 (2026-10-29)
+- Вкладка **GOOSE Publisher**: симуляція GOOSE за CID / SCD (кілька IED одночасно), значення задаються вручну (у т. ч. аналогові; Quality — validity і всі біти, кнопки для всіх Quality датасету), Simulation ON за замовчуванням (OFF — з підтвердженням), STOP ALL, перевірка конфлікту gocbRef, повтор MinTime → MaxTime.
 - Перевірка оновлень на GitHub при запуску (реліз за тегом), смужка «New version … available» з Download; у вікні «?» — галочка і кнопка «Check for updates». Збірка exe і реліз — GitHub Actions за тегом `v*`.
 - Програма називається **IEC61850ANALYZER** (вікно, exe `IEC61850ANALYZER_v0.2.0.exe`, налаштування `~/.iec61850analyzer.json`; старі налаштування `~/.iec61850_sniffer.json` підхоплюються).
 - Вкладка **PTP** (IEEE 1588 / IEC 61850-9-3, Ethernet і UDP): список повідомлень, Details, TLV (C37.238), панель **Clocks** — GM за BMCA, анонсовані годинники, інтервал Sync, попередження, перевірка 9-3. Retransmission / LOST / фільтри як для GOOSE.

@@ -16,6 +16,8 @@ SV: 1 s) gives a grey line "STREAM LOST"; when it comes back it is shown again.
 Messages with the simulation flag: orange background, [SIM] in the description.
 Tab PTP: IEEE 1588 / IEC 61850-9-3 messages (Ethernet 0x88F7 and UDP 319 / 320), panel Clocks:
 grandmaster by BMCA, announced clocks, warnings, check against IEC 61850-9-3.
+Tab GOOSE Publisher: simulation of GOOSE from CID / SCD (values set by hand, Simulation flag ON
+by default).
 SV tab, panel Phasors: RMS / angle / frequency of the selected stream (primary; secondary when
 the stream matches an SV control block of the loaded SCD / CID). Filters...: display filter.
 Needs: Python 3, scapy (pip install scapy), on Windows Npcap (https://npcap.com).
@@ -42,6 +44,7 @@ import analog as an              # noqa: E402
 import filters as fl             # noqa: E402
 import ptp                       # noqa: E402
 import updater                   # noqa: E402
+import pub_tab                   # noqa: E402
 
 APP = "IEC61850ANALYZER"
 VERSION = "v 0.2.0"
@@ -55,7 +58,8 @@ AUTHOR = {"en": "German Ievgen", "uk": "German Ievgen"}
 AUTHOR_URL = "https://www.linkedin.com/in/ievgen-german-945b16b6/"
                  # LinkedIn profile of the author (click on the name); empty = no link
 GITHUB_REPO = ""                 # "<owner>/<repository>" on GitHub: update check at start (empty = no check)
-AUTHOR_MAIL = "german.kbrza@gmailgit init.com"   # click -> new e-mail in the default mail program (Outlook)
+AUTHOR_MAIL = "german.kbrza@gmai.com"   # click -> new e-mail in the default mail program (Outlook)
+
 ABOUT = {
     "en": dict(title="About", text="This is a test program meant to make commissioning work easier.\n\n"
                                    "If you find that the program works incorrectly, please send a description "
@@ -1073,6 +1077,8 @@ class App(tk.Tk):
         self.nb.add(self.tabs["GOOSE"], text="  GOOSE  ")
         self.nb.add(self.tabs["SV"], text="  Sampled Values  ")
         self.nb.add(self.tabs["PTP"], text="  PTP  ")
+        self.pub_tab = pub_tab.PublisherTab(self.nb, self)
+        self.nb.add(self.pub_tab, text="  GOOSE Publisher  ")
         self.status = tk.StringVar()
         tk.Label(self, textvariable=self.status, anchor="w", bg="#2b2f36", fg="white", padx=8).pack(fill="x", side="bottom")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -1171,10 +1177,13 @@ class App(tk.Tk):
         self.tabs["SV"].show_phasors()
 
     def cur_tab(self):
-        return [self.tabs["GOOSE"], self.tabs["SV"], self.tabs["PTP"]][self.nb.index("current")]
+        i = self.nb.index("current")
+        return [self.tabs["GOOSE"], self.tabs["SV"], self.tabs["PTP"]][i] if i < 3 else None
 
     def cols_button(self):
         b = self.b_cols
+        if self.cur_tab() is None:
+            return
         self.cur_tab().columns_menu().tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
 
     def rule_menu(self, m, parent):
@@ -1358,6 +1367,10 @@ class App(tk.Tk):
         self._status()
 
     def on_close(self):
+        try:
+            self.pub_tab.stop_all()
+        except Exception:
+            pass
         self.stop()
         self.destroy()
 

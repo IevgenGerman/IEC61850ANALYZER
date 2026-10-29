@@ -150,3 +150,48 @@ assert any("UDP" in p for p in S2.summary(u["ts"])[0][0]["check"])
 g = sc.decode(mf.sv("01:0C:CD:04:01:11", "F8:02:78:10:EC:94", 0x4011, "MU01_QW1G_01", 0, [0] * 8, gm=GMC), full=True)
 assert g["gmIdentity"] == GMC
 print("PTP OK")
+
+
+# ---- GOOSE publisher: SCL -> frame -> decoder of the sniffer, retransmission MinTime ... MaxTime
+import goose_pub as gp
+G = gp.load_gcbs(os.path.join(R, "tools", "demo_ied.cid"))
+assert len(G) == 1
+g = G[0]
+assert (g["ref"], g["mac"], g["appid"], g["vlan"], g["prio"], g["min_ms"], g["max_ms"], g["confrev"]) == \
+    ("DEMO_IEDLD0/LLN0$GO$GCB1", "01:0C:CD:01:0F:01", 0x0F01, 101, 4, 4.0, 1000.0, 3)
+assert [e["btype"] for e in g["entries"]] == ["BOOLEAN", "Quality", "Dbpos", "FLOAT32", "Enum", "Struct"]
+assert [c["btype"] for c in g["entries"][5]["children"]] == ["BOOLEAN", "Quality", "Timestamp"]
+assert g["entries"][4]["value"] == 1 and g["entries"][4]["enum"][5] == "off"
+g["entries"][0]["value"] = True
+g["entries"][1]["value"] = {"validity": "questionable", "test": True}
+g["entries"][2]["value"] = "on"
+g["entries"][3]["value"] = 123.5
+g["entries"][4]["value"] = 3
+g.update(stnum=7, sqnum=0, t_change=1793300000.25, simulation=True, ndscom=False)
+d = sc.decode(gp.build_frame(g, "02:00:00:00:00:01", 1793300000.3, 8), full=True)
+vals = [x[2] for x in d["data"]]
+assert d["ref"] == g["ref"] and d["sim"] and d["vlan"] == 101 and d["prio"] == 4 and d["stNum"] == 7, d["header"]
+assert vals[0] == "TRUE" and "questionable, test" in vals[1] and vals[2].startswith("on") and vals[3] == "123.5" and vals[4] == "3", vals
+assert d["data"][5][1] == "Structure" and d["data"][6][2] == "FALSE"
+g["simulation"] = False
+assert not sc.decode(gp.build_frame(g, "02:00:00:00:00:01", 1793300000.3, 8))["sim"]
+sent = []
+pub = gp.Publisher(lambda iface, fr: sent.append((time.monotonic(), sc.decode(fr))))
+pub.start()
+g2 = gp.load_gcbs(os.path.join(R, "tools", "demo_ied.cid"))[0]
+g2["min_ms"], g2["max_ms"] = 10, 160
+pub.add(g2, "x", "02:00:00:00:00:01")
+time.sleep(0.5)
+pub.stop()
+st = [m["stNum"] for t, m in sent]
+iv = [round((b[0] - a[0]) * 1000) for a, b in zip(sent, sent[1:])][:5]
+assert st[0] == 1 and [m["sqNum"] for t, m in sent][:4] == [0, 1, 2, 3], st
+assert all(abs(a - b) <= 25 for a, b in zip(iv, [10, 20, 40, 80, 160])), iv   # loose: CI timers
+assert sent[0][1]["tal"] == 20
+print("PUBLISHER OK", iv)
+g3 = gp.load_gcbs(os.path.join(R, "tools", "demo_ied.cid"))[0]
+g3.update(stnum=1, sqnum=0, t_change=1793300000.0, simulation=True)
+g3["entries"][1]["value"] = {"validity": "invalid", "test": True, "flags": ["oldData", "failure", "operatorBlocked"]}
+q = sc.decode(gp.build_frame(g3, "02:00:00:00:00:01", 1793300000.0, 8), full=True)["data"][1][2]
+assert q.startswith("0100001100011") and "oldData" in q and "operatorBlocked" in q, q
+print("QUALITY OK")

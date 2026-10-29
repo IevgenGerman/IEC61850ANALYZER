@@ -1,36 +1,22 @@
-IEC61850ANALYZER v0.2.0 - GOOSE / SV / PTP analyzer for commissioning
+IEC61850ANALYZER v0.3.0 - GOOSE Publisher (simulation of IEDs from CID / SCD)
 
-Network traffic viewer for IEC 61850 substations, in the spirit of the
-IEDScout sniffer. Live capture on one or two adapters (Npcap / Scapy)
-or offline analysis of .pcap / .pcapng files.
+New tab "GOOSE Publisher": publish the GOOSE of IEDs from their SCL
+files, e.g. to test subscriptions and logic during commissioning.
 
-GOOSE
-- Message list: Time, IEDName, Network, PRP LAN, MAC, APPID (hex + dec),
-  VLAN ID / priority, gocbRef, Event
-- Details and data set values (Boolean, Dbpos, Quality, Float, Timestamp,
-  structures) with signal names from SCD / CID files
-- Retransmission off: first message + changes of values / qualities only
-- STREAM LOST after TAL, stream back shown in green
-
-Sampled Values (9-2 / 9-2LE)
-- Phasors panel: RMS, angle (selectable reference), true RMS, frequency
-- Primary values from the stream; secondary values only when the stream
-  matches the SCL control block (svID, MAC, APPID, confRev, channels),
-  ratios from TCTR / TVTR Rat.setMag.f
-- Instant sample values, qualities, gmIdentity check against PTP
-
-PTP (IEEE 1588 / IEC 61850-9-3 / C37.238)
-- Sync, Follow_Up, Announce, Pdelay, Delay, Signaling, Management;
-  Ethernet (0x88F7) and UDP 319 / 320
-- Clocks panel: grandmaster by BMCA, clock class, time source, Sync
-  interval, warnings and IEC 61850-9-3 profile check
-
-Common
-- Per-tab display filters: streams seen, one-field rules (MAC, APPID,
-  VLAN, reference, IEDName), simulation filter
-- Simulation messages highlighted [SIM]
-- Show / hide any column, named networks (e.g. PB A / PB B)
-- Update check at start against GitHub releases
-- Windows exe built by GitHub Actions for every tag v*
+- Load CID / SCD: control blocks, MAC, APPID, VLAN / priority, goID,
+  confRev, MinTime / MaxTime and the type of every data set entry are
+  taken from the file (CID: only its own IED, SCD: all IEDs)
+- Several IEDs / control blocks at the same time (tick the ones to send)
+- Values set by hand: BOOLEAN, Dbpos, Enum, integers, analog FLOAT32,
+  strings; double click for quick input, editor always visible
+- Quality: validity and every bit (overflow, outOfRange, badReference,
+  oscillatory, failure, oldData, inconsistent, inaccurate, substituted,
+  test, operatorBlocked); buttons to set all qualities of a data set
+- Simulation flag ON by default (field simulation + Reserved1 S bit);
+  OFF only after a confirmation. Needs commissioning flag
+- Confirmation before Start, STOP ALL, stop when the program closes
+- IEC 61850-8-1 retransmission: at once, MinTime, 2x, 4x ... MaxTime;
+  TAL = 2 x time to the next message
+- CONFLICT warning when the same gocbRef comes from another device
 
 Author: German Ievgen - ge.scout@gevernova.com

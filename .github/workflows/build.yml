@@ -47,4 +47,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/${{ env.EXENAME }}.exe
-          generate_release_notes: true
+          name: IEC61850ANALYZER ${{ github.ref_name }}
+          body_path: COMMIT_MSG.txt

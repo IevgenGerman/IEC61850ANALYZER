@@ -1,4 +1,4 @@
-# IEC61850ANALYZER (GOOSE / SV / PTP) — v0.2.0
+# IEC61850ANALYZER (GOOSE / SV / PTP / GOOSE Publisher) — v0.2.0
 
 Програма для перегляду трафіку **GOOSE**, **Sampled Values (9-2 / 9-2LE)** і **PTP (IEEE 1588 / IEC 61850-9-3)** у мережі, за зразком вікна Sniffer в OMICRON IEDScout. Автор: German Ievgen.
 
@@ -69,6 +69,18 @@ MMS у цій версії не розбирається.
 - **SV:** у Details потоку — **gmIdentity** (9-2 Ed2.1) і порівняння з Grandmaster вкладки PTP: «= grandmaster (OK)» або червоним «DIFFERENT».
 - Обмеження: Npcap дає програмні мітки часу (~мс) — **точність / offset PTP програма не вимірює**, лише показує, що анонсують годинники, і грубий інтервал Sync. Для вимірювання точності потрібен CMC / вимірювач з апаратними мітками.
 
+### GOOSE Publisher (вкладка GOOSE Publisher) — симуляція GOOSE за CID
+
+- **Load CID / SCD...** — GOOSE control blocks файлу. **CID / IID / ICD: лише власний IED файлу** (інші IED у CID — копії видавців, на яких він підписаний); SCD — усі IED. Можна завантажити кілька файлів (наприклад D60.cid і F60.cid). Один рядок = одна адреса GSE (IED з двома точками доступу має два рядки).
+- З SCL береться все: gocbRef, datSet, goID (appID), confRev, MAC, APPID, VLAN ID / priority, MinTime / MaxTime, склад датасету і **тип кожного елемента** (BOOLEAN, Dbpos, Quality, Timestamp, INT, FLOAT32 / 64, Enum, рядки, структури для FCD).
+- **Control blocks:** клік у першому стовпці — галочка «публікувати». Стан: stNum / sqNum; червоним — помилка відправки або **CONFLICT** (цей gocbRef у мережі приходить ще з іншого MAC — два видавці збивають підписників).
+- **Data set** вибраного блоку: значення задаються вручну (статично): BOOLEAN (галочка або подвійний клік), Dbpos (on / off / intermediate / bad), Quality — validity (good / invalid / questionable / reserved) і **всі біти**: overflow, outOfRange, badReference, oscillatory, failure, oldData, inconsistent, inaccurate, substituted, test, operatorBlocked; кнопки **All q of this data set** — одним кліком good / invalid / questionable / test on / test off / reset для всіх Quality датасету (одна зміна, stNum + 1), Enum (зі списку), числа (у тому числі **аналогові FLOAT32**), рядки. Timestamp — автоматично (час останньої зміни). Зміна значення у блоці, що публікується, відправляється відразу: stNum + 1.
+- **Network** — адаптер (Network 1 / 2 з Adapters...). Джерельний MAC — MAC адаптера.
+- **Simulation** — за замовчуванням **ON** (поле simulation = TRUE і біт S Reserved1, Ed2): такі GOOSE приймають лише IED у режимі симуляції (LPHD.Sim). Вимкнути — тільки після підтвердження; тоді це звичайні GOOSE і підписники **реагують**. **Needs commissioning** — прапорець ndsCom.
+- **Start ticked** — підтвердження (адаптер, список блоків, Simulation) і старт; **STOP ALL** — зупинити все (також при закритті програми).
+- Відправка за IEC 61850-8-1: heartbeat кожні MaxTime (sqNum + 1); після зміни — одразу, далі MinTime, 2×, 4× … до MaxTime; TAL = 2 × час до наступного повідомлення. Точність ~1 мс (достатньо для перевірки підписки та логіки, не для вимірювання часів — для цього CMC).
+- Свої повідомлення видно на вкладці GOOSE, якщо там іде захоплення на тому ж адаптері.
+
 ### Фільтри (кнопка Filters...)
 
 - **Filter enabled** / галочка **Filter** на панелі. Вимкнено — показується все.
@@ -108,12 +120,12 @@ MMS у цій версії не розбирається.
 - Лише стандартна бібліотека Python (urllib, json) — у `requirements.txt` нічого додавати не треба.
 
 ### Як випустити нову версію
-1. У `sniffer.py` змінити `VERSION = "v 0.2.1"`, дописати CHANGELOG.
+1. У `sniffer.py` змінити `VERSION = "v 0.2.1"`, дописати CHANGELOG і переписати `COMMIT_MSG.txt` (текст коміту і релізу). Перше завантаження — `first_push.bat`.
 2. ```
    git add -A
-   git commit -m "v0.2.1: ..."
+   git commit -F COMMIT_MSG.txt
    git push
-   git tag v0.2.1
+   git tag -a v0.2.1 -F COMMIT_MSG.txt
    git push origin v0.2.1
    ```
 3. GitHub Actions (`.github/workflows/build.yml`) запускає тести, збирає `IEC61850ANALYZER_v0.2.1.exe` і додає його до релізу `v0.2.1`. Після цього всі, хто запускає старішу версію, побачать смужку «New version v0.2.1 is available».
@@ -132,6 +144,8 @@ MMS у цій версії не розбирається.
 | `tools/demo_mu.scd` | демо-SCL до запису: MU01_QW1G збігається (300/1, 110 кВ / 100 В — є Secondary), MU02_QW1G має confRev 2 (Secondary немає, видно причину) |
 | `ptp.py` | розбір PTP, годинники, BMCA, перевірка 9-3 |
 | `updater.py` | перевірка нової версії на GitHub |
+| `goose_pub.py`, `pub_tab.py` | GOOSE Publisher: SCL → кадри, відправка, вкладка |
+| `tools/demo_ied.cid` | демо-CID для тестів публікатора (синтетичний) |
 | `.github/workflows/build.yml` | збірка exe і реліз на GitHub за тегом `v*` |
 | `tests/test_core.py` | перевірка розбору, фільтра, аналогів, PTP |
 | `build_exe.bat`, `exe_name.py` | збірка `.exe` з версією в назві |
