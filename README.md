@@ -1,4 +1,4 @@
-# IEC61850ANALYZER (GOOSE / SV / PTP / MMS / GOOSE Publisher) — v0.4.1
+# IEC61850ANALYZER (GOOSE / SV / PTP / MMS / GOOSE Publisher) — v0.5.0
 
 Програма для перегляду трафіку **GOOSE**, **Sampled Values (9-2 / 9-2LE)** і **PTP (IEEE 1588 / IEC 61850-9-3)** у мережі, за зразком вікна Sniffer в OMICRON IEDScout. Автор: German Ievgen.
 
@@ -12,7 +12,7 @@ MMS у цій версії не розбирається.
    pip install -r requirements.txt
    python sniffer.py
    ```
-   або зібрати `.exe`: двічі клацнути `build_exe.bat`. Результат: `dist\IEC61850ANALYZER v0.4.1.exe`.
+   або зібрати `.exe`: двічі клацнути `build_exe.bat`. Результат: `dist\IEC61850ANALYZER v0.5.0.exe`.
 3. Якщо адаптер не відкривається, запустіть програму від імені адміністратора.
 
 ## Вікно
@@ -78,10 +78,22 @@ MMS у цій версії не розбирається.
 - Кнопки **Show:** над списком — групи повідомлень (як в IEDScout): **Report** (звіти, InformationReport), **Client / Server** (запити / відповіді, Initiate, Operate, CommandTermination), **Protocol error** (помилки, Reject, невдале керування, Read / Write з помилкою, TCP reset, пропуск у захопленні), **TCP / COTP / Session** (з'єднання). Рядок видно, якщо увімкнена хоча б одна його група.
 - **Message** — назва сервісу IEC 61850 (ACSI), як в IEDScout: GetDataValues, SetDataValues, Select, SelectWithValue, Operate, Cancel, Get / SetURCBValues, Get / SetBRCBValues, GetServerDirectory, GetLogicalDeviceDirectory, GetDataSetDirectory, GetDataDirectory …; сервіс MMS (Read, Write, GetNameList …) — у Details. **CommandTermination (positive / negative)** — після Operate; negative з AddCause.
 - **Report** (IEC 61850-8-1): у списку RptID, SeqNum, кількість елементів і **Reason**: *data change*, *quality change*, *data update*, *integrity (period)*, *general interrogation*, *application trigger*. При виборі: RptID, OptFlds, SeqNum, TimeOfEntry, DatSet, ConfRev, EntryID, BufOvfl, SubSeqNum, Inclusion і кожен елемент: номер у датасеті, причина, значення (структури деревом) і назва сигналу (з data reference звіту або з датасету SCL за DatSet / RptID).
+- **Назви з MMS:** склад датасету, який програма побачила в MMS (відповідь **GetDataSetDirectory** або звіт із **data reference**), запам'ятовується до закриття програми. Його використовує вкладка **GOOSE**: якщо SCL не завантажено, у стовпці *Signal (SCL / MMS)* з'являються назви елементів з позначкою «(from MMS)». Сам GOOSE назв не містить — лише значення; найнадійніше джерело назв — SCD / CID.
 - **LastApplError** — невдале керування: CntrlObj, Error, Origin, ctlNum, **AddCause** людською мовою (Blocked-by-interlocking, Blocked-by-Mode …), червоним.
 - TCP збирається з сегментів (довгі звіти / відповіді), повтори ігноруються; пропуск у захопленні — рядок «Capture gap», далі синхронізація.
 - Зашифрований MMS (TLS, IEC 62351, порт 3782) прочитати неможливо.
 - **Active** (MMS-клієнт лише для читання: модель, значення, звіти через вільний RCB) — пізніше.
+
+### MMS → Report test (перевірка звітів IED за CID)
+
+1. **Load CID / SCD...** → IED (CID — власний IED, SCD — вибрати зі списку). IP береться з CID.
+2. **▶ Start test** (запропонує запустити захоплення) — рахуються лише звіти, що прийшли під час тесту: наживо (mirror-порт) або з **Open .pcap...**.
+3. **CID check** — кожен звіт IED порівнюється з CID: RptID ↔ ReportControl, DatSet, ConfRev, кількість елементів, назви (data reference), типи значень, причина ↔ TrgOps, OptFlds ↔ OptFields. Розбіжності — червоним, з кількістю і часом.
+4. **Сигнали** — для кожного елемента датасету: data change / quality change / data update / integrity / GI — ✔ час першого (кількість), **n/a** — причина неможлива (TrgOps RCB або тригери атрибута dchg / qchg / dupd у CID), **—** — ще не було. Для BOOLEAN / Dbpos data change зараховується лише після **обох станів**; *Min Δt states* — найменший час між протилежними станами. Клік по рядку датасету — включити / виключити його з тесту.
+5. **Required for 'completed'**: за замовчуванням data change, integrity, GI; quality change, data update — галочками. Коли все виконано: **«RCB test completed - all signals verified - дата час»**.
+6. **Save test...** (.json; далі автозбереження кожні 30 с), **Open test...** — продовжити іншого дня; **Export CSV...** — протокол (відкривається в Excel): IED, CID, IP, результат, CID check, таблиця сигналів.
+- Причина береться з ReasonCode звіту — в OptFields RCB має бути `reasonCode`, інакше попередження.
+- **GE UR (D60 / F60)**: у CID RCB без датасетів (датасети налаштовуються в IED, наприклад TT3DataSet01). Такі звіти тестуються з датасетом, побаченим у трафіку: кількість елементів зі звіту, назви — з data reference або GetDataSetDirectory, перевіряються data change (+ GI / integrity, якщо приходили).
 
 ### GOOSE Publisher (вкладка GOOSE Publisher) — симуляція GOOSE за CID
 
@@ -162,6 +174,7 @@ MMS у цій версії не розбирається.
 | `ptp.py` | розбір PTP, годинники, BMCA, перевірка 9-3 |
 | `updater.py` | перевірка нової версії на GitHub |
 | `mms.py` | пасивний розбір MMS: TCP, ISO-стек, MMS, звіти 61850 |
+| `rpt_test.py`, `rpt_tab.py` | MMS Report test: перевірка звітів за CID, покриття, json, CSV |
 | `goose_pub.py`, `pub_tab.py` | GOOSE Publisher: SCL → кадри, відправка, вкладка |
 | `tools/demo_ied.cid` | демо-CID для тестів публікатора і MMS (синтетичний: IP 192.168.1.20, ReportControl urcbA) |
 | `.github/workflows/build.yml` | збірка exe і реліз на GitHub за тегом `v*` |

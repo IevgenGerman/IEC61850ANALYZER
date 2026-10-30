@@ -246,7 +246,8 @@ def load_gcbs(path, own_only=None):
 
 
 def _copy(nodes):
-    return [dict(n, children=_copy(n.get("children") or []), value=_val_copy(n["value"])) for n in nodes]
+    return [dict(n, children=_copy(n.get("children") or []), value=_val_copy(n["value"]),
+                 trg=set(n.get("trg") or ())) for n in nodes]
 
 
 def _val_copy(v):
@@ -295,17 +296,26 @@ def _fcda_node(f, ldi, lns, T, q):
             el = next((b for b in dat.findall(q("BDA")) if b.get("name") == p), None) if dat is not None else None
             if el is None:
                 return dict(name=label, btype="BOOLEAN", value=False, children=[], unknown=True)
-        return _da_node(label, el, T, q)
-    return dict(name=label, btype="Struct", value=None, children=_dot_members(dot, fc, T, q, name))
+        return _da_node(label, el, T, q, inherit=_trg(da))
+    kids = _dot_members(dot, fc, T, q, name)
+    return dict(name=label, btype="Struct", value=None, children=kids,
+                trg=set().union(*[k.get("trg", set()) for k in kids]) if kids else set())
 
 
-def _da_node(name, el, T, q, depth=0):
+def _trg(el, inherit=()):
+    """trigger options of a DA (dchg / qchg / dupd); a BDA inherits those of its DA"""
+    t = {k for k in ("dchg", "qchg", "dupd") if el.get(k) == "true"}
+    return t or set(inherit)
+
+
+def _da_node(name, el, T, q, depth=0, inherit=()):
     bt = el.get("bType", "")
+    trg = _trg(el, inherit)
     if bt == "Struct" and depth < 6:
         dat = T["dat"].get(el.get("type"))
-        kids = [_da_node(name + "." + b.get("name"), b, T, q, depth + 1) for b in dat.findall(q("BDA"))] if dat is not None else []
-        return dict(name=name, btype="Struct", value=None, children=kids)
-    n = dict(name=name, btype=bt, value=default_value(bt), children=[])
+        kids = [_da_node(name + "." + b.get("name"), b, T, q, depth + 1, trg) for b in dat.findall(q("BDA"))] if dat is not None else []
+        return dict(name=name, btype="Struct", value=None, children=kids, trg=trg)
+    n = dict(name=name, btype=bt, value=default_value(bt), children=[], trg=trg)
     if bt == "Enum":
         n["enum"] = T["enum"].get(el.get("type"), {})
         if n["enum"]:
@@ -326,7 +336,8 @@ def _dot_members(dot, fc, T, q, base, depth=0):
             if sd is not None:
                 kids = _dot_members(sd, fc, T, q, base + "." + el.get("name"), depth + 1)
                 if kids:
-                    out.append(dict(name=base + "." + el.get("name"), btype="Struct", value=None, children=kids))
+                    out.append(dict(name=base + "." + el.get("name"), btype="Struct", value=None, children=kids,
+                                    trg=set().union(*[k.get("trg", set()) for k in kids])))
     return out
 
 

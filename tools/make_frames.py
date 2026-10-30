@@ -225,11 +225,13 @@ def btime(t):
     return ms.to_bytes(4, "big") + days.to_bytes(2, "big")
 
 
-def report(rptid, seq, t, datset, incl, values, reasons, confrev=1):
-    """IEC 61850-8-1 report: OptFlds sequence-number, report-time-stamp, reason, data-set-name, conf-revision"""
-    opt = bits([0, 1, 1, 1, 1, 0, 0, 0, 1, 0])
+def report(rptid, seq, t, datset, incl, values, reasons, confrev=1, refs=None):
+    """IEC 61850-8-1 report: OptFlds sequence-number, report-time-stamp, reason, data-set-name, conf-revision
+    (+ data-reference when refs are given)"""
+    opt = bits([0, 1, 1, 1, 1, 1 if refs else 0, 0, 0, 1, 0])
     items = (tlv(0x8A, rptid.encode()) + tlv(0x84, opt) + tlv(0x86, bytes([seq])) + tlv(0x8C, btime(t)) +
-             tlv(0x8A, datset.encode()) + tlv(0x86, bytes([confrev])) + tlv(0x84, bits(incl)) + b"".join(values) +
+             tlv(0x8A, datset.encode()) + tlv(0x86, bytes([confrev])) + tlv(0x84, bits(incl)) +
+             b"".join(tlv(0x8A, x.encode()) for x in (refs or [])) + b"".join(values) +
              b"".join(tlv(0x84, bits([0] + [1 if k in r else 0 for k in range(1, 7)], 7)) for r in reasons))
     return tlv(0xA3, tlv(0xA0, tlv(0xA1, tlv(0x80, b"RPT")) + tlv(0xA0, items)))
 
@@ -253,3 +255,13 @@ def command_termination(domain, item, add_cause=None):
     names += tlv(0x30, tlv(0xA0, tlv(0xA1, tlv(0x1A, domain.encode()) + tlv(0x1A, item.encode()))))
     res += oper
     return tlv(0xA3, tlv(0xA0, tlv(0xA0, names) + tlv(0xA0, res)))
+
+
+def dataset_dir_req(invoke, domain, item):
+    """GetNamedVariableListAttributes (GetDataSetDirectory) request"""
+    return tlv(0xA0, tlv(0x02, bytes([invoke])) + tlv(0xAC, tlv(0xA1, tlv(0x1A, domain.encode()) + tlv(0x1A, item.encode()))))
+
+
+def dataset_dir_resp(invoke, members):
+    lst = b"".join(tlv(0x30, tlv(0xA0, obj(d, i))) for d, i in members)
+    return tlv(0xA1, tlv(0x02, bytes([invoke])) + tlv(0xAC, tlv(0x80, b"\x00") + tlv(0xA1, lst)))

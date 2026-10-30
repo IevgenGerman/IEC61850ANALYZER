@@ -245,4 +245,53 @@ assert t[1][0] == "Operate request" and t[2][0] == "Operate response", t
 assert t[3] == ("CommandTermination (positive)", "", ["cs"]), t[3]
 assert t[4] == ("CommandTermination (negative)", "AddCause: Blocked-by-interlocking", ["cs", "error"]), t[4]
 assert rp["cats"] == {"report"} and rd["cats"] == {"cs", "error"} and o[0]["cats"] == {"transport"}
+# names of a data set learned from MMS (GOOSE data set without SCL)
+o = tsend(True, mf.mms_dt(mf.dataset_dir_req(11, "W1G_D60Master", "LLN0$TT6DataSet1")))
+o += tsend(False, mf.mms_dt(mf.dataset_dir_resp(11, [("W1G_D60Master", "Gen$ST$UsrPbIHMI1$Activated$stVal"),
+                                                     ("W1G_D60Master", "Gen$ST$UsrPbIHMI1$Activated$q")])))
+assert o[0]["mtype"] == "GetDataSetDirectory request" and "2 member(s)" in o[1]["info"], o[1]["info"]
+assert D.learned["W1G_D60Master/LLN0$TT6DataSet1"] == {0: "W1G_D60Master/Gen.UsrPbIHMI1.Activated.stVal [ST]",
+                                                        1: "W1G_D60Master/Gen.UsrPbIHMI1.Activated.q [ST]"}
+o = tsend(False, mf.mms_dt(mf.report("BIN_INPUT", 26, 1793300002, "W1G_F60Master/LLN0$TT3DataSet01", [0, 0, 0, 1],
+                                      [mf.tlv(0xA2, mf.boolean(False) + mf.quality(0))], [[1]],
+                                      refs=["W1G_F60Gen/UsrPbIHMI3$ST$Activated"])))
+assert D.learned["W1G_F60Master/LLN0$TT3DataSet01"] == {3: "W1G_F60Gen/UsrPbIHMI3.Activated [ST]"}
 print("MMS OK")
+
+
+# ---- MMS report test: demo traffic completes, CID differences, data set not in the CID
+import rpt_test as rtm
+import capture as cpm
+RT = rtm.ReportTest(rtm.load_ied(os.path.join(R, "tools", "demo_ied.cid")))
+DD = mms.MmsDecoder()
+for fr, ts in cpm.read_file(os.path.join(R, "tools", "demo_goose_sv.pcap")):
+    for m in DD.feed(fr, ts):
+        RT.feed(m, DD.learned)
+dsn = "DEMO_IEDLD0/LLN0$DS1"
+assert RT.completed and RT.status_text().startswith("RCB test completed - all signals verified"), RT.status_text()
+assert not RT.issues, RT.issues
+assert sorted(RT.cov[dsn][0]["states"]) == ["FALSE", "TRUE"] and abs(RT.cov[dsn][0]["min_dt"] - 0.3) < 0.01
+assert RT.possible(dsn, 1) == {"qchg", "gi", "integrity"} and RT.checks(dsn, 1) == ["integrity", "gi"]
+# differences: ConfRev 2, 5 entries, quality change not in TrgOps of a modified CID
+RT2 = rtm.ReportTest(rtm.load_ied(os.path.join(R, "tools", "demo_ied.cid")))
+RT2.info["rcbs"][0]["trgops"] = ["dchg", "gi", "period"]
+bad = {"kind": "MMS", "ts": 1.0, "server": "192.168.1.20", "report": dict(
+    rid="DEMO_IED_urcbA", seq=1, time=1793300000.0, dset=dsn, confrev=2, n=5,
+    opt=["sequence-number", "report-time-stamp", "reason-for-inclusion", "data-set-name", "conf-revision"],
+    entries=[dict(k=1, type="Boolean", nmem=0, state="TRUE", value="TRUE", ref=None, reasons=["quality change"])])}
+RT2.feed(bad)
+txt = " | ".join(RT2.issues)
+assert "ConfRev 2, CID 3" in txt or "ConfRev 2, CID 1" in txt, txt
+assert "5 data set entries in the report, 6 in the CID" in txt and "type Boolean, CID Quality" in txt
+assert "reason 'quality change' but TrgOps" in txt, txt
+# report of an RCB / data set that is not in the CID (GE UR: data sets configured in the IED)
+RT3 = rtm.ReportTest(rtm.load_ied(os.path.join(R, "tools", "demo_ied.cid")))
+dyn = {"kind": "MMS", "ts": 2.0, "server": "192.168.1.20", "report": dict(
+    rid="BIN_INPUT", seq=26, time=1793300000.0, dset="DEMO_IEDLD0/LLN0$TT3DataSet01", confrev=1, n=4,
+    opt=["sequence-number", "reason-for-inclusion", "data-set-name", "data-reference"],
+    entries=[dict(k=3, type="Structure", nmem=3, state="FALSE", value="FALSE", ref="DEMO_IEDGen/UsrPbIHMI3.Activated [ST]",
+                  reasons=["data change"])])}
+RT3.feed(dyn)
+assert "DEMO_IEDLD0/LLN0$TT3DataSet01" in RT3.dyn and RT3.info["datasets"]["DEMO_IEDLD0/LLN0$TT3DataSet01"][3]["name"].endswith("UsrPbIHMI3.Activated [ST]")
+assert any("not in the CID" in x for x in RT3.issues)
+print("REPORT TEST OK")

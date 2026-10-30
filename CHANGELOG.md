@@ -1,9 +1,20 @@
 # CHANGELOG
 
+## v0.5.0 (2026-10-30)
+- Нова вкладка **MMS → Report test** — перевірка звітів одного IED за його CID (пасивно, з трафіку SCADA або з pcap):
+  - **CID check**: RptID ↔ ReportControl, DatSet, ConfRev, кількість елементів датасету, data reference (назви), типи значень (DataTypeTemplates), причини ↔ TrgOps, OptFlds ↔ OptFields, звіти RCB, яких немає в CID;
+  - **покриття сигналів**: для кожного елемента датасетів RCB — data change, quality change, data update, integrity, GI (перший час, кількість), останнє значення; можливі причини = TrgOps RCB ∩ тригери атрибута (dchg / qchg / dupd) з DataTypeTemplates, інакше n/a;
+  - для BOOLEAN / Dbpos data change вимагає **обидва стани** (TRUE / FALSE, on / off) і показує **мінімальний час між станами**;
+  - обов'язкові для «completed» за замовчуванням: data change, GI, integrity; quality change і data update — галочками; покриття — по датасету (будь-який екземпляр RCB);
+  - «**RCB test completed - all signals verified - дата час**»;
+  - **Save / Open test** (.json, автозбереження кожні 30 с після першого Save), **Export CSV** (Excel);
+  - RCB без датасету в CID (GE UR: датасети налаштовані в IED) — звіти тестуються з датасетом, побаченим у трафіку (назви з data reference / GetDataSetDirectory).
+
 ## v0.4.1 (2026-10-30)
 - MMS / Passive: кнопки **Show: Report / Client / Server / Protocol error / TCP / COTP / Session** — показати або сховати групу повідомлень (як в IEDScout), вибір зберігається. Повідомлення з помилкою (наприклад Read з object-non-existent) належить і до Client / Server, і до Protocol error.
 - Назви сервісів IEC 61850 (ACSI), як в IEDScout: GetDataValues, SetDataValues, Select, SelectWithValue, Operate, Cancel, Get / SetURCBValues, Get / SetBRCBValues, GetServerDirectory, GetLogicalDeviceDirectory, GetDataSetDirectory, GetDataDirectory ... (сервіс MMS — у Details).
 - **CommandTermination (positive / negative)** — InformationReport після Operate; negative з AddCause.
+- **Назви елементів датасету з MMS:** програма запам'ятовує склад датасету з відповідей GetDataSetDirectory і зі звітів із data reference; на вкладці GOOSE (якщо немає SCL) у стовпці Signal з'являються ці назви з позначкою «(from MMS)». Так само назви для звітів без data reference.
 
 ## v0.4.0 (2026-10-29)
 - Нова вкладка **MMS** з підрозділами **Passive** / **Active** (Active — пізніше).

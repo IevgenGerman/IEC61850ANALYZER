@@ -80,6 +80,12 @@ tcp(0.70, True, mf.mms_dt(mf.read_req(2, [("DEMO_IEDLD0", "GGIO1$ST$Ind1$stVal")
 tcp(0.71, False, mf.mms_dt(mf.read_resp(2, [mf.boolean(False), mf.tlv(0x85, b"\x01"), mf.tlv(0x80, b"\x0a")])))
 tcp(0.80, True, mf.mms_dt(mf.write_req(3, [("DEMO_IEDLD0", "LLN0$RP$urcbA01$RptEna")], [mf.boolean(True)])))
 tcp(0.81, False, mf.mms_dt(mf.write_resp(3)))
+# SCADA asks the data set of the D60 GOOSE -> the analyzer learns the names for the GOOSE tab (no SCL needed)
+tcp(0.815, True, mf.mms_dt(mf.dataset_dir_req(6, "W1G_D60Master", "LLN0$TT6DataSet1")))
+tcp(0.816, False, mf.mms_dt(mf.dataset_dir_resp(6, [("W1G_D60Master", "Gen$ST$UsrPbIHMI1$Activated$stVal"),
+                                                   ("W1G_D60Master", "Gen$ST$UsrPbIHMI1$Activated$q"),
+                                                   ("W1G_D60Master", "Gen$ST$UsrPbIHMI2$Activated$stVal"),
+                                                   ("W1G_D60Master", "Gen$ST$UsrPbIHMI2$Activated$q")])))
 v = vals(False, 0, 1, 1250.5, 1, False)
 tcp(0.82, False, mf.mms_dt(mf.report("DEMO_IED_urcbA", 0, T + 0.82, "DEMO_IEDLD0/LLN0$DS1", [1] * 6, v, [[5]] * 6)))
 v = vals(True, 0, 1, 1250.5, 1, False)
@@ -96,6 +102,14 @@ tcp(6.30, False, mf.mms_dt(mf.command_termination("DEMO_IEDLD0", "Q0XCBR1$CO$Pos
 tcp(6.80, True, mf.mms_dt(mf.write_req(5, [("DEMO_IEDLD0", "Q0XCBR1$CO$Pos$Oper")], [oper])))
 tcp(6.81, False, mf.mms_dt(mf.write_resp(5)))
 tcp(7.00, False, mf.mms_dt(mf.command_termination("DEMO_IEDLD0", "Q0XCBR1$CO$Pos$Oper", 10)))
+# more data changes -> the MMS / Report test of DEMO_IED completes (both states, min time 300 ms)
+v = vals(False, 0, 1, 1310.0, 3, True)
+tcp(8.00, False, mf.mms_dt(mf.report("DEMO_IED_urcbA", 5, T + 8.0, "DEMO_IEDLD0/LLN0$DS1", [1, 0, 0, 0, 0, 0], v[:1], [[1]])))
+v = vals(True, 0, 1, 1310.0, 3, True)
+tcp(8.30, False, mf.mms_dt(mf.report("DEMO_IED_urcbA", 6, T + 8.3, "DEMO_IEDLD0/LLN0$DS1", [1, 0, 1, 1, 1, 1],
+                                      [v[0], v[2], v[3], v[4], v[5]], [[1], [1], [1], [1], [1]])))
+v = vals(True, 0, 1, 1310.0, 3, False)
+tcp(8.55, False, mf.mms_dt(mf.report("DEMO_IED_urcbA", 7, T + 8.55, "DEMO_IEDLD0/LLN0$DS1", [0, 0, 0, 0, 0, 1], v[5:], [[1]])))
 tcp(9.00, True, b"", 0x11); tcp(9.001, False, b"", 0x11)
 out.sort(key=lambda x:x[0])
 w=PcapWriter('demo_goose_sv.pcap',linktype=1)

@@ -1,18 +1,24 @@
-IEC61850ANALYZER v0.4.1 - MMS message groups and IEC 61850 service names
+IEC61850ANALYZER v0.5.0 - MMS Report test (RCB test against the CID)
 
-MMS / Passive:
-- Buttons "Show: Report / Client / Server / Protocol error /
-  TCP / COTP / Session" to show or hide groups of messages (like the
-  IEDScout sniffer); the choice is saved. A message with an error
-  (e.g. Read with object-non-existent) belongs to Client / Server and
-  to Protocol error
-- IEC 61850 (ACSI) service names instead of the MMS ones: GetDataValues,
-  SetDataValues, Select, SelectWithValue, Operate, Cancel,
-  Get / SetURCBValues, Get / SetBRCBValues, GetServerDirectory,
-  GetLogicalDeviceDirectory, GetDataSetDirectory, GetDataDirectory ...
-  (the MMS service is shown in Details)
-- CommandTermination (positive / negative) after Operate, negative with
-  the AddCause in plain words
-- Exe name: "IEC61850ANALYZER v0.4.1.exe"
+New sub tab MMS / Report test: the reports of one IED are checked
+against its CID while SCADA (or a capture file) delivers them.
+
+- CID check: RptID -> ReportControl, DatSet, ConfRev, number of data set
+  entries, data references, types of the values (DataTypeTemplates),
+  reasons allowed by TrgOps, OptFlds against OptFields, reports of RCBs
+  that are not in the CID
+- Coverage of every signal of the report data sets: data change,
+  quality change, data update, integrity, general interrogation (first
+  time, count), last value. Possible reasons = TrgOps of the RCB and the
+  trigger options of the attribute in the CID, else n/a
+- BOOLEAN / Dbpos: data change needs both states (TRUE / FALSE, on / off);
+  the minimum time between two opposite states is shown
+- Required for "completed" (default): data change, GI, integrity;
+  quality change and data update optional. Counted per data set (any
+  RCB instance)
+- "RCB test completed - all signals verified - <date time>"
+- Save / open the test (.json, auto save every 30 s), export CSV (Excel)
+- RCBs without a data set in the CID (data sets configured in the IED,
+  e.g. GE UR): tested with the data set seen in the traffic
 
 Author: German Ievgen - ge.scout@gevernova.com

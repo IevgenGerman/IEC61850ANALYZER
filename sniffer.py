@@ -17,7 +17,8 @@ Messages with the simulation flag: orange background, [SIM] in the description.
 Tab PTP: IEEE 1588 / IEC 61850-9-3 messages (Ethernet 0x88F7 and UDP 319 / 320), panel Clocks:
 grandmaster by BMCA, announced clocks, warnings, check against IEC 61850-9-3.
 Tab MMS / Passive: MMS between SCADA and IEDs (TCP 102, mirror port / TAP / capture file): read,
-write, reports with reasons, control errors. MMS / Active (MMS client): later.
+write, reports with reasons, control errors. MMS / Report test: reports of one IED checked against
+its CID and every signal / reason ticked off. MMS / Active (MMS client): later.
 Tab GOOSE Publisher: simulation of GOOSE from CID / SCD (values set by hand, Simulation flag ON
 by default).
 SV tab, panel Phasors: RMS / angle / frequency of the selected stream (primary; secondary when
@@ -48,9 +49,10 @@ import ptp                       # noqa: E402
 import updater                   # noqa: E402
 import pub_tab                   # noqa: E402
 import mms                       # noqa: E402
+import rpt_tab                   # noqa: E402
 
 APP = "IEC61850ANALYZER"
-VERSION = "v 0.4.1"
+VERSION = "v 0.5.0"
 MAX_ROWS = 50000                 # per tab; older rows are dropped
 DRAIN_PER_TICK = 4000            # messages moved from the capture queue to the view per 100 ms
 GREY = "#9a9a9a"
@@ -210,7 +212,7 @@ class StreamTab(ttk.Frame):
         self.data.heading("rms", text="RMS (Phasors)", anchor="w")
         self.data.column("rms", width=105, anchor="e", stretch=False)
         self.data.heading("type", text="Type", anchor="w")
-        self.data.heading("sig", text="Signal (SCL)", anchor="w")
+        self.data.heading("sig", text="Signal (SCL / MMS)" if kind == "GOOSE" else "Signal (SCL)", anchor="w")
         self.data.column("#0", width=110, anchor="w", stretch=False)
         self.data.column("value", width=230, anchor="w")
         self.data.column("type", width=80, anchor="w", stretch=False)
@@ -671,12 +673,18 @@ class StreamTab(ttk.Frame):
             keys = {}
             for k, parent, label, val, typ, sig in m.get("tree", []):
                 keys[k] = self.data.insert(keys.get(parent, ""), "end", text=label, values=(val, "", typ, sig), open=True)
+        learned = {}
+        if m["kind"] == "GOOSE":                           # names of the data set learned from MMS traffic
+            dsr = next((v for f, v in m["header"] if f == "DataSet reference"), "")
+            learned = self.app.mms.learned.get(dsr, {})
         for i, (nm, typ, val, _raw) in enumerate(m["data"]):
             if self.kind == "PTP":
                 self.data.insert("", "end", text=nm, values=(val, "", typ, ""))
                 continue
             if m["kind"] == "GOOSE":
                 sig = names.goose_name(m["ref"], nm) if names else ""
+                if not sig and "." not in nm and learned.get(int(nm) - 1):
+                    sig = learned[int(nm) - 1] + "   (from MMS)"
                 parent = parents.get(nm.rsplit(".", 1)[0], "") if "." in nm else ""
                 label = "%s %s" % (typ, nm.rsplit(".", 1)[-1]) if typ != "Structure" else "Structure %s" % nm.rsplit(".", 1)[-1]
             else:
@@ -1142,6 +1150,8 @@ class App(tk.Tk):
         self.mms_nb.pack(fill="both", expand=True)
         self.tabs["MMS"] = StreamTab(self.mms_nb, self, "MMS")
         self.mms_nb.add(self.tabs["MMS"], text="  Passive  ")
+        self.rpt_tab = rpt_tab.ReportTestTab(self.mms_nb, self)
+        self.mms_nb.add(self.rpt_tab, text="  Report test  ")
         act = ttk.Frame(self.mms_nb)
         tk.Label(act, text="Active MMS client (read only) - planned:\n\n"
                            "  - connect to an IED (IP), browse the data model\n"
@@ -1516,6 +1526,8 @@ class App(tk.Tk):
         for k, L in batch.items():
             if L:
                 self.tabs[k].add(L, view=not self.paused)
+        if batch["MMS"]:
+            self.rpt_tab.feed(batch["MMS"])
         if n:
             self._status()
         self.after(100, self.poll)
@@ -1578,6 +1590,7 @@ class App(tk.Tk):
         for k in msgs:
             msgs[k].sort(key=lambda m: m["ts"])
             self.tabs[k].add(msgs[k])
+        self.rpt_tab.feed(msgs["MMS"])
         self._status()
         self.title("%s  %s  -  %s" % (APP, VERSION, os.path.basename(path)))
         self.update_net_col()
