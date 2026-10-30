@@ -128,3 +128,128 @@ def ptp_pdelay_req(src, clock, seq, domain=0):
 def ptp_pdelay_resp(src, clock, seq, req_clock, t, domain=0):
     b = ptp_hdr(0x3, 54, clock, 1, seq, domain, (0x02, 0x00), 0x7F, ctrl=5) + ptp_ts(t) + macb(req_clock) + (1).to_bytes(2, "big")
     return ptp_frame(PDELAY_MAC, src, b)
+
+
+# ---------------------------------------------------------------- MMS over TCP (IEC 61850-8-1)
+def ipv4_tcp(dst_mac, src_mac, sip, dip, sport, dport, seq, ack, flags, payload=b"", vlan=None):
+    tcp = (sport.to_bytes(2, "big") + dport.to_bytes(2, "big") + (seq & 0xFFFFFFFF).to_bytes(4, "big") +
+           (ack & 0xFFFFFFFF).to_bytes(4, "big") + bytes([5 << 4, flags]) + (8192).to_bytes(2, "big") + b"\x00" * 4)
+    ip = (b"\x45\x00" + (20 + len(tcp) + len(payload)).to_bytes(2, "big") + b"\x00\x01\x40\x00\x40\x06\x00\x00" +
+          bytes(int(x) for x in sip.split(".")) + bytes(int(x) for x in dip.split(".")))
+    return eth(dst_mac, src_mac, 0x0800, ip + tcp + payload, vlan)
+
+
+def tpkt(cotp):
+    return b"\x03\x00" + (4 + len(cotp)).to_bytes(2, "big") + cotp
+
+
+def cotp_dt(spdu, eot=True):
+    return tpkt(b"\x02\xf0" + (b"\x80" if eot else b"\x00") + spdu)
+
+
+def cotp_cr(cc=False):
+    return tpkt(bytes([0x11, 0xD0 if cc else 0xE0]) + b"\x00\x01\x00\x01\x00" +
+                b"\xc0\x01\x0a\xc1\x02\x00\x01\xc2\x02\x00\x01")
+
+
+def pres_data(mms, ctx=3):
+    return tlv(0x61, tlv(0x30, tlv(0x02, bytes([ctx])) + tlv(0xA0, mms)))
+
+
+def mms_dt(mms):
+    return cotp_dt(b"\x01\x00\x01\x00" + pres_data(mms))
+
+
+def mms_connect(mms, accept=False):
+    """Session CN / AC + presentation CP / CPA + ACSE AARQ / AARE + MMS initiate"""
+    user = tlv(0xBE, tlv(0x28, tlv(0x02, b"\x03") + tlv(0xA0, mms)))
+    acse = tlv(0x61 if accept else 0x60, tlv(0xA1, tlv(0x06, bytes.fromhex("28ca220203"))) +
+               ((tlv(0xA2, tlv(0x02, b"\x00"))) if accept else b"") + user)
+    pres = tlv(0x31, tlv(0xA0, tlv(0x80, b"\x00\x01")) + tlv(0xA2, tlv(0x61, tlv(0x30, tlv(0x02, b"\x01") + tlv(0xA0, acse)))))
+    ud = bytes([0xC1]) + (bytes([len(pres)]) if len(pres) < 255 else b"\xff" + len(pres).to_bytes(2, "big")) + pres
+    spdu = bytes([0x0E if accept else 0x0D]) + (bytes([len(ud)]) if len(ud) < 255 else b"\xff" + len(ud).to_bytes(2, "big")) + ud
+    return cotp_dt(spdu)
+
+
+def initiate(resp=False):
+    detail = tlv(0xA4, tlv(0x80, b"\x01") + tlv(0x81, b"\x05\xf1\x00") + tlv(0x82, b"\x03\xee\x1c\x00\x00\x04\x08\x00\x00\x79\xef\x18"))
+    return tlv(0xA9 if resp else 0xA8, tlv(0x80, (65000).to_bytes(4, "big")[1:]) + tlv(0x81, b"\x05") +
+               tlv(0x82, b"\x05") + tlv(0x83, b"\x0a") + detail)
+
+
+def obj(domain, item):
+    return tlv(0xA1, tlv(0x1A, domain.encode()) + tlv(0x1A, item.encode()))
+
+
+def read_req(invoke, names):
+    lst = b"".join(tlv(0x30, tlv(0xA0, obj(d, i))) for d, i in names)
+    return tlv(0xA0, tlv(0x02, bytes([invoke])) + tlv(0xA4, tlv(0xA1, tlv(0xA0, lst))))
+
+
+def read_resp(invoke, datas):
+    return tlv(0xA1, tlv(0x02, bytes([invoke])) + tlv(0xA4, tlv(0xA1, b"".join(datas))))
+
+
+def write_req(invoke, names, datas):
+    lst = b"".join(tlv(0x30, tlv(0xA0, obj(d, i))) for d, i in names)
+    return tlv(0xA0, tlv(0x02, bytes([invoke])) + tlv(0xA5, tlv(0xA0, lst) + tlv(0xA0, b"".join(datas))))
+
+
+def write_resp(invoke, n=1):
+    return tlv(0xA1, tlv(0x02, bytes([invoke])) + tlv(0xA5, b"\x81\x00" * n))
+
+
+def getnamelist_req(invoke, domain):
+    return tlv(0xA0, tlv(0x02, bytes([invoke])) + tlv(0xA1, tlv(0xA0, tlv(0x80, b"\x00")) + tlv(0xA1, tlv(0x81, domain.encode()))))
+
+
+def getnamelist_resp(invoke, ids):
+    return tlv(0xA1, tlv(0x02, bytes([invoke])) + tlv(0xA1, tlv(0xA0, b"".join(tlv(0x1A, x.encode()) for x in ids)) + tlv(0x81, b"\x00")))
+
+
+def bits(lst, nbits=None):
+    n = nbits or len(lst)
+    nb = (n + 7) // 8
+    v = 0
+    for i, x in enumerate(lst):
+        if x:
+            v |= 1 << (nb * 8 - 1 - i)
+    return bytes([nb * 8 - n]) + v.to_bytes(nb, "big")
+
+
+def btime(t):
+    import datetime as _dt
+    d = _dt.datetime.utcfromtimestamp(t)
+    days = (d.date() - _dt.date(1984, 1, 1)).days
+    ms = (d.hour * 3600 + d.minute * 60 + d.second) * 1000 + d.microsecond // 1000
+    return ms.to_bytes(4, "big") + days.to_bytes(2, "big")
+
+
+def report(rptid, seq, t, datset, incl, values, reasons, confrev=1):
+    """IEC 61850-8-1 report: OptFlds sequence-number, report-time-stamp, reason, data-set-name, conf-revision"""
+    opt = bits([0, 1, 1, 1, 1, 0, 0, 0, 1, 0])
+    items = (tlv(0x8A, rptid.encode()) + tlv(0x84, opt) + tlv(0x86, bytes([seq])) + tlv(0x8C, btime(t)) +
+             tlv(0x8A, datset.encode()) + tlv(0x86, bytes([confrev])) + tlv(0x84, bits(incl)) + b"".join(values) +
+             b"".join(tlv(0x84, bits([0] + [1 if k in r else 0 for k in range(1, 7)], 7)) for r in reasons))
+    return tlv(0xA3, tlv(0xA0, tlv(0xA1, tlv(0x80, b"RPT")) + tlv(0xA0, items)))
+
+
+def last_appl_error(cntrl, add_cause):
+    st = (tlv(0x8A, cntrl.encode()) + tlv(0x85, b"\x00") + tlv(0xA2, tlv(0x85, b"\x03") + tlv(0x89, b"SCADA")) +
+          tlv(0x86, b"\x07") + tlv(0x85, bytes([add_cause])))
+    return tlv(0xA3, tlv(0xA0, tlv(0xA0, tlv(0x30, tlv(0xA0, tlv(0x80, b"LastApplError")))) + tlv(0xA0, tlv(0xA2, st))))
+
+
+def command_termination(domain, item, add_cause=None):
+    """InformationReport after Operate: [LastApplError,] <obj>$CO$<DO>$Oper (negative when add_cause is given)"""
+    oper = tlv(0xA2, tlv(0x83, b"\x01") + tlv(0xA2, tlv(0x85, b"\x03") + tlv(0x89, b"SCADA")) + tlv(0x86, b"\x07") +
+               tlv(0x91, b"\x00" * 8) + tlv(0x83, b"\x00") + tlv(0x84, b"\x06\x00"))
+    names = b""
+    res = b""
+    if add_cause is not None:
+        names += tlv(0x30, tlv(0xA0, tlv(0x80, b"LastApplError")))
+        res += tlv(0xA2, tlv(0x8A, (domain + "/" + item).encode()) + tlv(0x85, b"\x01") +
+                   tlv(0xA2, tlv(0x85, b"\x03") + tlv(0x89, b"SCADA")) + tlv(0x86, b"\x07") + tlv(0x85, bytes([add_cause])))
+    names += tlv(0x30, tlv(0xA0, tlv(0xA1, tlv(0x1A, domain.encode()) + tlv(0x1A, item.encode()))))
+    res += oper
+    return tlv(0xA3, tlv(0xA0, tlv(0xA0, names) + tlv(0xA0, res)))

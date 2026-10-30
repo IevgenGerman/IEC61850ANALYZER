@@ -16,6 +16,8 @@ SV: 1 s) gives a grey line "STREAM LOST"; when it comes back it is shown again.
 Messages with the simulation flag: orange background, [SIM] in the description.
 Tab PTP: IEEE 1588 / IEC 61850-9-3 messages (Ethernet 0x88F7 and UDP 319 / 320), panel Clocks:
 grandmaster by BMCA, announced clocks, warnings, check against IEC 61850-9-3.
+Tab MMS / Passive: MMS between SCADA and IEDs (TCP 102, mirror port / TAP / capture file): read,
+write, reports with reasons, control errors. MMS / Active (MMS client): later.
 Tab GOOSE Publisher: simulation of GOOSE from CID / SCD (values set by hand, Simulation flag ON
 by default).
 SV tab, panel Phasors: RMS / angle / frequency of the selected stream (primary; secondary when
@@ -45,9 +47,10 @@ import filters as fl             # noqa: E402
 import ptp                       # noqa: E402
 import updater                   # noqa: E402
 import pub_tab                   # noqa: E402
+import mms                       # noqa: E402
 
 APP = "IEC61850ANALYZER"
-VERSION = "v 0.2.0"
+VERSION = "v 0.4.1"
 MAX_ROWS = 50000                 # per tab; older rows are dropped
 DRAIN_PER_TICK = 4000            # messages moved from the capture queue to the view per 100 ms
 GREY = "#9a9a9a"
@@ -55,11 +58,9 @@ SIM_BG = "#ffd9a8"               # background of messages with the simulation fl
 SETTINGS = os.path.join(os.path.expanduser("~"), ".iec61850analyzer.json")
 SETTINGS_OLD = os.path.join(os.path.expanduser("~"), ".iec61850_sniffer.json")   # v0.1 / first v0.2 builds
 AUTHOR = {"en": "German Ievgen", "uk": "German Ievgen"}
-AUTHOR_URL = "https://www.linkedin.com/in/ievgen-german-945b16b6/"
-                 # LinkedIn profile of the author (click on the name); empty = no link
-GITHUB_REPO = ""                 # "<owner>/<repository>" on GitHub: update check at start (empty = no check)
-AUTHOR_MAIL = "german.kbrza@gmai.com"   # click -> new e-mail in the default mail program (Outlook)
-
+AUTHOR_URL = "https://www.linkedin.com/in/859621"                  # LinkedIn profile of the author (click on the name); empty = no link
+GITHUB_REPO = "IevgenGerman/IEC61850ANALYZER"                 # "<owner>/<repository>" on GitHub: update check at start (empty = no check)
+AUTHOR_MAIL = "ge.scout@gevernova.com"   # click -> new e-mail in the default mail program (Outlook)
 ABOUT = {
     "en": dict(title="About", text="This is a test program meant to make commissioning work easier.\n\n"
                                    "If you find that the program works incorrectly, please send a description "
@@ -106,13 +107,15 @@ def tstr(ts):
 class StreamTab(ttk.Frame):
     COLS = ("time", "rel", "net", "lan", "src", "dst", "appid", "vlan", "prio", "desc", "event")
     COLS_GOOSE = ("time", "ied", "rel", "net", "lan", "src", "dst", "appid", "vlan", "prio", "desc", "event")
+    COLS_MMS = ("time", "rel", "net", "lan", "ied", "src", "dst", "dir", "mtype", "reason", "invoke", "info")
     COLS_PTP = ("time", "rel", "net", "lan", "src", "dst", "vlan", "prio", "mtype", "domain", "clock", "seq",
                 "intv", "info", "event")
     HEAD = {"time": ("Time", 128), "ied": ("IEDName", 120), "rel": ("Relative time", 95), "net": ("Network", 85),
             "lan": ("LAN", 40), "src": ("Source", 140), "dst": ("Destination", 140), "appid": ("APPID", 118),
             "vlan": ("VLAN ID", 85), "prio": ("Prio", 40), "desc": ("gocbRef", 330), "event": ("Event", 60),
-            "mtype": ("Message type", 140), "domain": ("Domain", 55), "clock": ("Clock identity - port", 215),
-            "seq": ("Seq", 55), "intv": ("Interval", 65), "info": ("Info", 330)}
+            "mtype": ("Message type", 165), "domain": ("Domain", 55), "clock": ("Clock identity - port", 215),
+            "seq": ("Seq", 55), "intv": ("Interval", 65), "info": ("Info", 330),
+            "dir": ("Dir", 45), "invoke": ("Invoke", 55), "reason": ("Reason", 175)}
     # LD inst names glued to the IED name in gocbRef (<IED><LD>/LLN0$GO$..): removed for the IEDName
     # column when no SCL is loaded (GE UR: "Master"); the LD names of loaded SCL files are added
     LD_SUFFIX = ("Master", "System", "LD0", "LD1", "LD2", "CTRL", "Ctrl", "PROT", "Prot", "MEAS", "Meas",
@@ -121,7 +124,7 @@ class StreamTab(ttk.Frame):
     def __init__(self, master, app, kind):
         super().__init__(master)
         self.app, self.kind = app, kind
-        self.cols = {"GOOSE": self.COLS_GOOSE, "PTP": self.COLS_PTP}.get(kind, self.COLS)   # IEDName: GOOSE only
+        self.cols = {"GOOSE": self.COLS_GOOSE, "PTP": self.COLS_PTP, "MMS": self.COLS_MMS}.get(kind, self.COLS)   # IEDName: GOOSE only
         self.rows = []                 # messages of the model (newest last)
         self.iid = {}                  # tree iid -> message
         self.n = 0
@@ -138,13 +141,27 @@ class StreamTab(ttk.Frame):
         ttk.Button(sf, text="x", width=2, command=lambda: (self.search.set(""), self.rebuild())).pack(side="left", padx=2)
         self.flabel = tk.Label(sf, text="", fg="#b00020", anchor="w")      # "Filter ON: n hidden"
         self.flabel.pack(side="left", padx=8)
+        self.cat_vars = {}
+        if kind == "MMS":                                  # message groups like IEDScout: Report / C/S / error
+            saved = load_settings().get("mms_cats", {})
+            cf = ttk.Frame(sf)
+            cf.pack(side="right", padx=4)
+            tk.Label(cf, text="Show:").pack(side="left", padx=(0, 4))
+            for key, txt in (("report", "Report"), ("cs", "Client / Server"), ("error", "Protocol error"),
+                             ("transport", "TCP / COTP / Session")):
+                v = tk.BooleanVar(value=saved.get(key, True))
+                self.cat_vars[key] = v
+                tk.Checkbutton(cf, text=txt, variable=v, indicatoron=False, padx=8, pady=1, selectcolor="#cfe0f5",
+                               command=self._cats_changed).pack(side="left", padx=1)
         self.hidden_n = 0
         tf = ttk.Frame(left)
         tf.pack(fill="both", expand=True)
         self.tree = ttk.Treeview(tf, columns=self.cols, show="headings", selectmode="browse")
         for c in self.cols:
             self.tree.heading(c, text=self.col_title(c), anchor="w")
-            self.tree.column(c, width=self.HEAD[c][1], anchor="w", stretch=(c in ("desc", "info")))
+            w = {"info": 420, "mtype": 225}.get(c) if kind == "MMS" else None
+            self.tree.column(c, width=w or self.HEAD[c][1], anchor="w",
+                             stretch=(c in ("desc", "info") and kind != "MMS"))
         vs = ttk.Scrollbar(tf, orient="vertical", command=self.tree.yview)
         hs = ttk.Scrollbar(tf, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=vs.set, xscrollcommand=hs.set)
@@ -162,7 +179,7 @@ class StreamTab(ttk.Frame):
         self.tree.bind("<Button-3>", self.on_right_click)
         self.tree.bind("<Button-2>", self.on_right_click)       # macOS
         st = load_settings()
-        self.hidden = set(st.get("hidden_cols_" + kind, []))       # columns hidden by the user
+        self.hidden = set(st.get("hidden_cols_" + kind, ["rel", "lan"] if kind == "MMS" else []))   # hidden by the user
         self.net_always = bool(st.get("net_always_" + kind, False))
         self.net_auto = True
         pw.add(left, weight=3)
@@ -307,6 +324,9 @@ class StreamTab(ttk.Frame):
         self.apply_columns()
 
     def col_title(self, c):
+        if self.kind == "MMS":
+            return {"src": "Source (IP:port)", "dst": "Destination (IP:port)", "ied": "IEDName (server)",
+                    "mtype": "Message"}.get(c, self.HEAD[c][0])
         return ("gocbRef" if self.kind == "GOOSE" else "svID") if c == "desc" else self.HEAD[c][0]
 
     # ------------------------------------------------------------ PTP: clocks panel
@@ -422,6 +442,9 @@ class StreamTab(ttk.Frame):
             return "break"
 
     def show_sig(self, on):
+        if self.kind == "MMS":
+            self.data.configure(displaycolumns=("value", "type", "sig") if on else ("value", "type"))
+            return
         if self.kind == "PTP":
             self.data.configure(displaycolumns=("value", "type"))
             return
@@ -458,9 +481,18 @@ class StreamTab(ttk.Frame):
                 m["dst"], vlan, prio, m.get("mname", ""), m.get("domain", ""), m.get("ref", ""), m.get("seq", ""),
                 iv, info, ev)
 
+    def _values_mms(self, m):
+        t0 = self.app.t0 or m["ts"]
+        ied = self.app.ied_of(m)
+        return (tstr(m["ts"]), "%.6f" % (m["ts"] - t0), self.app.net_name(m["net"]), m.get("lan") or "-", ied,
+                m["src"], m["dst"], m.get("dir", ""), m.get("mtype", ""), m.get("reason", ""),
+                "" if m.get("invoke") is None else m["invoke"], m.get("info", ""))
+
     def _values(self, m):
         if self.kind == "PTP":
             return self._values_ptp(m)
+        if self.kind == "MMS":
+            return self._values_mms(m)
         t0 = self.app.t0 or m["ts"]
         if m["kind"] == "LOST":
             desc = "STREAM LOST   %s" % m["ref"]
@@ -499,6 +531,16 @@ class StreamTab(ttk.Frame):
         return head
 
     def _tag(self, m):
+        if self.kind == "MMS":
+            t = m.get("mtype", "")
+            if t.startswith(("Confirmed error", "Reject", "LastApplError", "TCP reset", "Capture gap")) or \
+                    "REJECTED" in t or m.get("bad"):
+                return ("err",)
+            if t == "Report":
+                return ("change",)
+            if t.startswith(("TCP", "COTP", "Session", "ACSE")):
+                return ("lost",)                           # grey: transport events
+            return ()
         sim = ("sim",) if m.get("sim") else ()
         if m["kind"] == "LOST":
             return ("lost",) + sim
@@ -527,7 +569,7 @@ class StreamTab(ttk.Frame):
         s = self.search.get().strip()
         last = None
         for m in msgs:
-            if not self._shown_by_filter(m) or not self._match(m, s, False):
+            if not self._cat_ok(m) or not self._shown_by_filter(m) or not self._match(m, s, False):
                 continue
             self.n += 1
             iid = "m%d" % self.n
@@ -537,6 +579,16 @@ class StreamTab(ttk.Frame):
         if last and self.app.var_scroll.get():
             self.tree.see(last)
         self._filter_label()
+
+    def _cats_changed(self):
+        save_settings({"mms_cats": {k: v.get() for k, v in self.cat_vars.items()}})
+        self.rebuild()
+
+    def _cat_ok(self, m):
+        """MMS: shown when one of its groups (report / cs / error / transport) is switched on"""
+        if not self.cat_vars:
+            return True
+        return any(self.cat_vars[c].get() for c in m.get("cats", ("transport",)) if c in self.cat_vars)
 
     def _filter_label(self):
         if not self.app.filt.enabled:
@@ -557,7 +609,7 @@ class StreamTab(ttk.Frame):
         last = None
         self.hidden_n = 0
         for m in self.rows:
-            if not self._shown_by_filter(m) or not self._match(m, s, False):
+            if not self._cat_ok(m) or not self._shown_by_filter(m) or not self._match(m, s, False):
                 continue
             self.n += 1
             iid = "m%d" % self.n
@@ -584,6 +636,8 @@ class StreamTab(ttk.Frame):
                     m[k] = full[k]
             m["full"] = True
         ttl = ("%s   %s" % (m.get("mname", ""), m["ref"])) if self.kind == "PTP" else (m["ref"] or "")
+        if self.kind == "MMS":
+            ttl = "%s   %s" % (m.get("mtype", ""), m.get("info", ""))
         self.title.configure(text=("STREAM LOST   " if m["kind"] == "LOST" else "") + ttl,
                              fg=GREY if m["kind"] == "LOST" else "black")
         self.head.delete(*self.head.get_children())
@@ -612,6 +666,11 @@ class StreamTab(ttk.Frame):
             cb = an.Phasors.match(an.stream_info(m), names)[0]
             scal = an.scales(len(m["data"]) // 2, cb, sec)
             self.data.heading("value", text="Instant value, smpCnt %s" % m.get("smpCnt", ""))
+        if self.kind == "MMS":
+            self.data.column("#0", width=230)
+            keys = {}
+            for k, parent, label, val, typ, sig in m.get("tree", []):
+                keys[k] = self.data.insert(keys.get(parent, ""), "end", text=label, values=(val, "", typ, sig), open=True)
         for i, (nm, typ, val, _raw) in enumerate(m["data"]):
             if self.kind == "PTP":
                 self.data.insert("", "end", text=nm, values=(val, "", typ, ""))
@@ -868,7 +927,7 @@ class FilterDialog(tk.Toplevel):
         for i, k in enumerate(fl.FIELDS):
             ttk.Label(ef, text=self.RHEAD[k][0]).grid(row=0, column=i, sticky="w", padx=2)
             if k == "kind":
-                w = ttk.Combobox(ef, values=("", "GOOSE", "SV", "PTP"), width=7, state="readonly")
+                w = ttk.Combobox(ef, values=("", "GOOSE", "SV", "PTP", "MMS"), width=7, state="readonly")
             elif k == "net":
                 w = ttk.Combobox(ef, values=("", app.net_name(1), app.net_name(2)), width=9, state="readonly")
             elif k == "lan":
@@ -1049,6 +1108,7 @@ class App(tk.Tk):
         self.lock = threading.RLock()
         self.tracker = sc.Tracker()
         self.phasors = an.Phasors()
+        self.mms = mms.MmsDecoder()
         self.ptp_state = ptp.PtpState()
         self.last_ts = None
         self.caps = []
@@ -1077,6 +1137,20 @@ class App(tk.Tk):
         self.nb.add(self.tabs["GOOSE"], text="  GOOSE  ")
         self.nb.add(self.tabs["SV"], text="  Sampled Values  ")
         self.nb.add(self.tabs["PTP"], text="  PTP  ")
+        mf = ttk.Frame(self.nb)
+        self.mms_nb = ttk.Notebook(mf)
+        self.mms_nb.pack(fill="both", expand=True)
+        self.tabs["MMS"] = StreamTab(self.mms_nb, self, "MMS")
+        self.mms_nb.add(self.tabs["MMS"], text="  Passive  ")
+        act = ttk.Frame(self.mms_nb)
+        tk.Label(act, text="Active MMS client (read only) - planned:\n\n"
+                           "  - connect to an IED (IP), browse the data model\n"
+                           "  - read values (GetDataValues)\n"
+                           "  - reports only through a free report control block (not the one of SCADA)\n\n"
+                           "No write / control.", justify="left", anchor="nw", padx=20, pady=20,
+                 font=("Segoe UI", 10)).pack(fill="both", expand=True)
+        self.mms_nb.add(act, text="  Active (later)  ")
+        self.nb.add(mf, text="  MMS  ")
         self.pub_tab = pub_tab.PublisherTab(self.nb, self)
         self.nb.add(self.pub_tab, text="  GOOSE Publisher  ")
         self.status = tk.StringVar()
@@ -1157,6 +1231,8 @@ class App(tk.Tk):
             return self.tabs["GOOSE"].ied_name(m.get("ref") or "").strip("()")
         if kind == "PTP":
             return ""
+        if kind == "MMS":
+            return self.scl.ip_ied.get(m.get("server", ""), "") if self.scl else ""
         if self.scl:
             inf = dict(svid=m.get("ref"), dst=m["dst"], appid=m["appid"], vlan=m["vlan"],
                        confRev=m.get("confRev"), nch=m.get("nch"), smpRate=m.get("smpRate"))
@@ -1178,6 +1254,10 @@ class App(tk.Tk):
 
     def cur_tab(self):
         i = self.nb.index("current")
+        if i == 3:
+            return self.tabs["MMS"] if self.mms_nb.index("current") == 0 else None
+        if i > 3:
+            return None
         return [self.tabs["GOOSE"], self.tabs["SV"], self.tabs["PTP"]][i] if i < 3 else None
 
     def cols_button(self):
@@ -1191,14 +1271,19 @@ class App(tk.Tk):
         kind = m["stream"] if m["kind"] == "LOST" else m["kind"]
         ied = self.ied_of(m)
         mn = tk.Menu(parent, tearoff=0)
-        items = [("Source MAC = %s" % m["src"], dict(src=m["src"])),
-                 ("Destination MAC = %s" % m["dst"], dict(dst=m["dst"]))]
+        if kind == "MMS":
+            items = [("Source IP = %s" % m["ip_src"], dict(src=m["ip_src"] + ":*")),
+                     ("Destination IP = %s" % m["ip_dst"], dict(dst=m["ip_dst"] + ":*"))]
+        else:
+            items = [("Source MAC = %s" % m["src"], dict(src=m["src"])),
+                     ("Destination MAC = %s" % m["dst"], dict(dst=m["dst"]))]
         if m.get("appid") is not None:
             items.append(("APPID = 0x%04X (%d)" % (m["appid"], m["appid"]), dict(appid="%04X" % m["appid"])))
         if m.get("vlan") is not None:
             items.append(("VLAN ID = %d" % m["vlan"], dict(vlan=str(m["vlan"]))))
         if m.get("ref"):
-            items.append(("%s = %s" % ({"GOOSE": "gocbRef", "SV": "svID"}.get(kind, "Clock identity - port"), m["ref"]),
+            items.append(("%s = %s" % ({"GOOSE": "gocbRef", "SV": "svID", "MMS": "RptID / object / connection"}.get(
+                kind, "Clock identity - port"), m["ref"]),
                           dict(ref=m["ref"])))
         if ied:
             items.append(("IEDName = %s" % ied, dict(ied=ied)))
@@ -1297,6 +1382,7 @@ class App(tk.Tk):
             names = self.scl or sn.SclNames()
             names.load(files)
             self.scl = names
+            self.mms.names = names
         finally:
             self.config(cursor="")
         msg = names.summary()
@@ -1306,6 +1392,7 @@ class App(tk.Tk):
         self.tabs["GOOSE"].rebuild()          # IEDName column from the new SCL
         if self.filt.enabled:
             self.tabs["SV"].rebuild()
+        self.tabs["MMS"].rebuild()
         for t in self.tabs.values():
             t.on_select()
         self._status()
@@ -1353,6 +1440,7 @@ class App(tk.Tk):
         with self.lock:
             self.tracker.reset()
             self.phasors.reset()
+            self.mms.reset()
             self.ptp_state.reset()
             self.last_ts = None
             self.on_retrans()
@@ -1379,6 +1467,12 @@ class App(tk.Tk):
         """capture thread: decode (fast), filter, queue what must be shown"""
         m = sc.decode(frame, ts, net, full=False)
         if m is None:
+            with self.lock:
+                out = self.mms.feed(frame, ts, net)
+                self.tracker.captured["MMS"] += len(out)
+                self.tracker.shown["MMS"] += len(out)
+            for x in out:
+                self.q.put(x)
             return
         with self.lock:
             out = self.tracker.feed(m)
@@ -1403,7 +1497,7 @@ class App(tk.Tk):
 
     def poll(self):
         """GUI thread: queue -> tabs"""
-        batch = {"GOOSE": [], "SV": [], "PTP": []}
+        batch = {"GOOSE": [], "SV": [], "PTP": [], "MMS": []}
         n = 0
         try:
             while n < DRAIN_PER_TICK:
@@ -1432,9 +1526,10 @@ class App(tk.Tk):
         n1 = self.net_labels[0] or (self.nets[0] or "-")
         n2 = self.net_labels[1] or (self.nets[1] or "-")
         scl = self.scl.summary() if self.scl else "no SCL"
-        self.status.set("%s   |   %s: %s   |   %s: %s   |   GOOSE %d / %d   SV %d / %d   PTP %d / %d  shown / captured   |   %s   |   %s"
+        self.status.set("%s   |   %s: %s   |   %s: %s   |   GOOSE %d / %d   SV %d / %d   PTP %d / %d   MMS %d  shown / captured   |   %s   |   %s"
                         % (state, self.net_name(1), n1[:30], self.net_name(2), n2[:30], tr.shown["GOOSE"], tr.captured["GOOSE"],
-                           tr.shown["SV"], tr.captured["SV"], tr.shown["PTP"], tr.captured["PTP"], self.filt.summary(), scl))
+                           tr.shown["SV"], tr.captured["SV"], tr.shown["PTP"], tr.captured["PTP"], tr.captured["MMS"],
+                           self.filt.summary(), scl))
 
     # ------------------------------------------------------------ file
     def open_file(self, path=None):
@@ -1450,7 +1545,7 @@ class App(tk.Tk):
         self.live = False
         self.config(cursor="watch")
         self.update()
-        msgs = {"GOOSE": [], "SV": [], "PTP": []}
+        msgs = {"GOOSE": [], "SV": [], "PTP": [], "MMS": []}
         last = None
         try:
             for frame, ts in cp.read_file(path):
@@ -1458,6 +1553,10 @@ class App(tk.Tk):
                     lost = self.tracker.check(ts)
                     m = sc.decode(frame, ts, 1, full=False)
                     out = self.tracker.feed(m) if m else []
+                    if m is None:
+                        out = self.mms.feed(frame, ts, 1)
+                        self.tracker.captured["MMS"] += len(out)
+                        self.tracker.shown["MMS"] += len(out)
                     if m and m["kind"] == "SV":
                         self.phasors.feed(m)
                     elif m and m["kind"] == "PTP":
@@ -1465,7 +1564,8 @@ class App(tk.Tk):
                 for x in lost:
                     msgs[x["stream"]].append(x)
                 for x in out:
-                    x["raw"] = frame
+                    if x["kind"] != "MMS":
+                        x["raw"] = frame
                     msgs[x["kind"]].append(x)
                 if self.t0 is None and (lost or out):
                     self.t0 = ts

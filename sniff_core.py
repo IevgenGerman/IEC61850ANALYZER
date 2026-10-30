@@ -409,13 +409,13 @@ class Tracker:
     def __init__(self):
         self.retrans = {"GOOSE": False, "SV": False, "PTP": False}
         self.streams = {}            # key -> dict(kind, last ts, sig, tal, lost, ref ...)
-        self.captured = {"GOOSE": 0, "SV": 0, "PTP": 0}
-        self.shown = {"GOOSE": 0, "SV": 0, "PTP": 0}
+        self.captured = {"GOOSE": 0, "SV": 0, "PTP": 0, "MMS": 0}
+        self.shown = {"GOOSE": 0, "SV": 0, "PTP": 0, "MMS": 0}
 
     def reset(self):
         self.streams.clear()
-        self.captured = {"GOOSE": 0, "SV": 0, "PTP": 0}
-        self.shown = {"GOOSE": 0, "SV": 0, "PTP": 0}
+        self.captured = {"GOOSE": 0, "SV": 0, "PTP": 0, "MMS": 0}
+        self.shown = {"GOOSE": 0, "SV": 0, "PTP": 0, "MMS": 0}
 
     def feed(self, m):
         """a decoded message -> list of messages to show (lost events of other streams are

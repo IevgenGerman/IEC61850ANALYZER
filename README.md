@@ -1,4 +1,4 @@
-# IEC61850ANALYZER (GOOSE / SV / PTP / GOOSE Publisher) — v0.2.0
+# IEC61850ANALYZER (GOOSE / SV / PTP / MMS / GOOSE Publisher) — v0.4.1
 
 Програма для перегляду трафіку **GOOSE**, **Sampled Values (9-2 / 9-2LE)** і **PTP (IEEE 1588 / IEC 61850-9-3)** у мережі, за зразком вікна Sniffer в OMICRON IEDScout. Автор: German Ievgen.
 
@@ -12,7 +12,7 @@ MMS у цій версії не розбирається.
    pip install -r requirements.txt
    python sniffer.py
    ```
-   або зібрати `.exe`: двічі клацнути `build_exe.bat`. Результат: `dist\IEC61850ANALYZER_v0.2.0.exe`.
+   або зібрати `.exe`: двічі клацнути `build_exe.bat`. Результат: `dist\IEC61850ANALYZER v0.4.1.exe`.
 3. Якщо адаптер не відкривається, запустіть програму від імені адміністратора.
 
 ## Вікно
@@ -69,6 +69,20 @@ MMS у цій версії не розбирається.
 - **SV:** у Details потоку — **gmIdentity** (9-2 Ed2.1) і порівняння з Grandmaster вкладки PTP: «= grandmaster (OK)» або червоним «DIFFERENT».
 - Обмеження: Npcap дає програмні мітки часу (~мс) — **точність / offset PTP програма не вимірює**, лише показує, що анонсують годинники, і грубий інтервал Sync. Для вимірювання точності потрібен CMC / вимірювач з апаратними мітками.
 
+### MMS (вкладка MMS → Passive / Active)
+
+- **Passive** — програма лише слухає MMS (TCP **102**) між SCADA та IED, нічого не відправляє.
+- Комутатор передає MMS (unicast) лише в порт адресата, тому ноутбук на сусідньому порту MMS **не бачить**. Потрібно: **port mirroring (SPAN)** порту IED / SCADA на порт ноутбука, **TAP** / hub, або захоплення на сервері SCADA (pcap → Open .pcap...).
+- Список: Time, Network, IEDName (сервер, за IP з `Communication / Address / IP` у SCL), Source / Destination IP:port, Dir (C→S клієнт → сервер, S→C), **Message**, **Reason**, Invoke ID, Info. Стовпці Relative time і LAN за замовчуванням сховані (Columns...).
+- Повідомлення: TCP connect / close / reset, COTP CR / CC / DR, Session / ACSE, **Initiate** (max PDU), **GetNameList**, **Read** (у відповіді — назви запитаних об'єктів, помилки object-non-existent тощо червоним), **Write**, GetVariableAccessAttributes, GetNamedVariableListAttributes, Identify, Confirmed error, Reject, Conclude.
+- Кнопки **Show:** над списком — групи повідомлень (як в IEDScout): **Report** (звіти, InformationReport), **Client / Server** (запити / відповіді, Initiate, Operate, CommandTermination), **Protocol error** (помилки, Reject, невдале керування, Read / Write з помилкою, TCP reset, пропуск у захопленні), **TCP / COTP / Session** (з'єднання). Рядок видно, якщо увімкнена хоча б одна його група.
+- **Message** — назва сервісу IEC 61850 (ACSI), як в IEDScout: GetDataValues, SetDataValues, Select, SelectWithValue, Operate, Cancel, Get / SetURCBValues, Get / SetBRCBValues, GetServerDirectory, GetLogicalDeviceDirectory, GetDataSetDirectory, GetDataDirectory …; сервіс MMS (Read, Write, GetNameList …) — у Details. **CommandTermination (positive / negative)** — після Operate; negative з AddCause.
+- **Report** (IEC 61850-8-1): у списку RptID, SeqNum, кількість елементів і **Reason**: *data change*, *quality change*, *data update*, *integrity (period)*, *general interrogation*, *application trigger*. При виборі: RptID, OptFlds, SeqNum, TimeOfEntry, DatSet, ConfRev, EntryID, BufOvfl, SubSeqNum, Inclusion і кожен елемент: номер у датасеті, причина, значення (структури деревом) і назва сигналу (з data reference звіту або з датасету SCL за DatSet / RptID).
+- **LastApplError** — невдале керування: CntrlObj, Error, Origin, ctlNum, **AddCause** людською мовою (Blocked-by-interlocking, Blocked-by-Mode …), червоним.
+- TCP збирається з сегментів (довгі звіти / відповіді), повтори ігноруються; пропуск у захопленні — рядок «Capture gap», далі синхронізація.
+- Зашифрований MMS (TLS, IEC 62351, порт 3782) прочитати неможливо.
+- **Active** (MMS-клієнт лише для читання: модель, значення, звіти через вільний RCB) — пізніше.
+
 ### GOOSE Publisher (вкладка GOOSE Publisher) — симуляція GOOSE за CID
 
 - **Load CID / SCD...** — GOOSE control blocks файлу. **CID / IID / ICD: лише власний IED файлу** (інші IED у CID — копії видавців, на яких він підписаний); SCD — усі IED. Можна завантажити кілька файлів (наприклад D60.cid і F60.cid). Один рядок = одна адреса GSE (IED з двома точками доступу має два рядки).
@@ -120,6 +134,9 @@ MMS у цій версії не розбирається.
 - Лише стандартна бібліотека Python (urllib, json) — у `requirements.txt` нічого додавати не треба.
 
 ### Як випустити нову версію
+
+Коротко: змінити `VERSION` у `sniffer.py`, `CHANGELOG.md`, `COMMIT_MSG.txt` і двічі клацнути **`release.bat`** (коміт з текстом `COMMIT_MSG.txt`, push, тег = версія, push тегу). Вручну:
+
 1. У `sniffer.py` змінити `VERSION = "v 0.2.1"`, дописати CHANGELOG і переписати `COMMIT_MSG.txt` (текст коміту і релізу). Перше завантаження — `first_push.bat`.
 2. ```
    git add -A
@@ -139,13 +156,14 @@ MMS у цій версії не розбирається.
 | `scl_names.py` | назви сигналів, IEDName, SV control blocks (адреса, confRev, Rat / HzRtg каналів) з SCD / CID / ICD / IID |
 | `analog.py` | RMS / кут / частота SV, перевірка збігу з SCL, Primary / Secondary |
 | `filters.py` | правила фільтра |
-| `capture.py` | адаптери і захоплення (Npcap / libpcap через Scapy). Захоплюються лише кадри 0x88B8, 0x88BA, 0x88F7 і UDP 319 / 320, з VLAN і без |
+| `capture.py` | адаптери і захоплення (Npcap / libpcap через Scapy). Захоплюються лише кадри 0x88B8, 0x88BA, 0x88F7, UDP 319 / 320 і TCP 102, з VLAN і без |
 | `tools/make_frames.py`, `tools/make_demo.py`, `tools/demo_goose_sv.pcap` | побудова тестових кадрів і демо-запис: GOOSE D60 (PRP LAN A + B) / F60 зі змінами і зникненням потоку, симульований GOOSE, 3 потоки SV (200 A / 63,5 кВ, PRP LAN A; один зі зміною якості, один симульований, 49,8 Гц; gmIdentity), PTP: GM з GPS (clockClass 6 → 7 на 7 с, TLV C37.238), Pdelay комутатора, другий майстер з 9 с (class 248, інтервал 2 с) |
 | `tools/demo_mu.scd` | демо-SCL до запису: MU01_QW1G збігається (300/1, 110 кВ / 100 В — є Secondary), MU02_QW1G має confRev 2 (Secondary немає, видно причину) |
 | `ptp.py` | розбір PTP, годинники, BMCA, перевірка 9-3 |
 | `updater.py` | перевірка нової версії на GitHub |
+| `mms.py` | пасивний розбір MMS: TCP, ISO-стек, MMS, звіти 61850 |
 | `goose_pub.py`, `pub_tab.py` | GOOSE Publisher: SCL → кадри, відправка, вкладка |
-| `tools/demo_ied.cid` | демо-CID для тестів публікатора (синтетичний) |
+| `tools/demo_ied.cid` | демо-CID для тестів публікатора і MMS (синтетичний: IP 192.168.1.20, ReportControl urcbA) |
 | `.github/workflows/build.yml` | збірка exe і реліз на GitHub за тегом `v*` |
 | `tests/test_core.py` | перевірка розбору, фільтра, аналогів, PTP |
 | `build_exe.bat`, `exe_name.py` | збірка `.exe` з версією в назві |

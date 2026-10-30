@@ -5,6 +5,7 @@
   <Communication>
     <SubNetwork name="PB_A" type="8-MMS">
       <ConnectedAP iedName="DEMO_IED" apName="AP1">
+        <Address><P type="IP">192.168.1.20</P><P type="IP-SUBNET">255.255.255.0</P></Address>
         <GSE ldInst="LD0" cbName="GCB1">
           <Address>
             <P type="MAC-Address">01-0C-CD-01-0F-01</P><P type="APPID">0F01</P>
@@ -29,6 +30,11 @@
             <FCDA ldInst="LD0" lnClass="GGIO" lnInst="1" doName="Ind2" fc="ST"/>
           </DataSet>
           <GSEControl name="GCB1" datSet="DS1" appID="DEMO_IED_GOOSE1" confRev="3" type="GOOSE"/>
+          <ReportControl name="urcbA" datSet="DS1" rptID="DEMO_IED_urcbA" confRev="1" buffered="false" intgPd="5000">
+            <TrgOps dchg="true" qchg="true" period="true" gi="true"/>
+            <OptFields seqNum="true" timeStamp="true" dataSet="true" reasonCode="true" configRef="true"/>
+            <RptEnabled max="1"/>
+          </ReportControl>
         </LN0>
         <LN lnClass="GGIO" inst="1" lnType="GGIO_T"/>
         <LN prefix="Q0" lnClass="XCBR" inst="1" lnType="XCBR_T"/>

@@ -56,6 +56,47 @@ for j, i in enumerate(range(9, 14, 2)):
     t = T + i + 0.6
     out.append((t, mf.ptp_announce('00:0A:DC:AA:BB:CC', '00:0A:DC:FF:FE:AA:BB:CC', j, t, cls=248, acc=0xFE, tsrc=0xA0, flags1=0x00, lmi=1)))
     out.append((t + 0.001, mf.ptp_sync('00:0A:DC:AA:BB:CC', '00:0A:DC:FF:FE:AA:BB:CC', j, t, two_step=False, lmi=1)))
+# MMS (TCP 102): SCADA 192.168.1.10 <-> DEMO_IED 192.168.1.20 (names from tools/demo_ied.cid):
+# connect, initiate, GetNameList, Read, reports (GI, data change, quality change, integrity - split in two
+# TCP segments), Write RptEna, failed control (LastApplError), close
+import struct as _st
+CM, SM = "00:50:56:00:00:10", "00:0A:DC:00:00:20"
+seqs = {"c": 1000, "s": 5000}
+def tcp(t, fromc, payload=b"", flags=0x18):
+    a = (CM, "192.168.1.10", 50001) if fromc else (SM, "192.168.1.20", 102)
+    b = (SM, "192.168.1.20", 102) if fromc else (CM, "192.168.1.10", 50001)
+    k = "c" if fromc else "s"
+    out.append((T + t, mf.ipv4_tcp(b[0], a[0], a[1], b[1], a[2], b[2], seqs[k], 0, flags, payload)))
+    seqs[k] += len(payload) + (1 if flags & 0x03 else 0)
+def vals(b1, q1, pos, w, mod, b2):
+    return [mf.boolean(b1), mf.quality(q1), mf.dbpos(pos), mf.tlv(0x87, b"\x08" + _st.pack(">f", w)), mf.tlv(0x85, bytes([mod])),
+            mf.tlv(0xA2, mf.boolean(b2) + mf.quality(0) + mf.utc(T + 1))]
+tcp(0.50, True, flags=0x02); tcp(0.501, False, flags=0x12)
+tcp(0.502, True, mf.cotp_cr()); tcp(0.503, False, mf.cotp_cr(True))
+tcp(0.51, True, mf.mms_connect(mf.initiate())); tcp(0.52, False, mf.mms_connect(mf.initiate(True), True))
+tcp(0.60, True, mf.mms_dt(mf.getnamelist_req(1, "DEMO_IEDLD0")))
+tcp(0.61, False, mf.mms_dt(mf.getnamelist_resp(1, ["GGIO1", "GGIO1$ST", "GGIO1$ST$Ind1", "LLN0", "MMXU1", "Q0XCBR1"])))
+tcp(0.70, True, mf.mms_dt(mf.read_req(2, [("DEMO_IEDLD0", "GGIO1$ST$Ind1$stVal"), ("DEMO_IEDLD0", "LLN0$ST$Mod$stVal"), ("DEMO_IEDLD0", "MMXU1$MX$TotW$mag$f")])))
+tcp(0.71, False, mf.mms_dt(mf.read_resp(2, [mf.boolean(False), mf.tlv(0x85, b"\x01"), mf.tlv(0x80, b"\x0a")])))
+tcp(0.80, True, mf.mms_dt(mf.write_req(3, [("DEMO_IEDLD0", "LLN0$RP$urcbA01$RptEna")], [mf.boolean(True)])))
+tcp(0.81, False, mf.mms_dt(mf.write_resp(3)))
+v = vals(False, 0, 1, 1250.5, 1, False)
+tcp(0.82, False, mf.mms_dt(mf.report("DEMO_IED_urcbA", 0, T + 0.82, "DEMO_IEDLD0/LLN0$DS1", [1] * 6, v, [[5]] * 6)))
+v = vals(True, 0, 1, 1250.5, 1, False)
+tcp(3.10, False, mf.mms_dt(mf.report("DEMO_IED_urcbA", 1, T + 3.1, "DEMO_IEDLD0/LLN0$DS1", [1, 0, 0, 0, 0, 0], v[:1], [[1]])))
+v = vals(True, 1, 2, 980.0, 1, False)
+tcp(4.20, False, mf.mms_dt(mf.report("DEMO_IED_urcbA", 2, T + 4.2, "DEMO_IEDLD0/LLN0$DS1", [0, 1, 1, 0, 0, 0], v[1:3], [[2], [1]])))
+rep = mf.mms_dt(mf.report("DEMO_IED_urcbA", 3, T + 5.82, "DEMO_IEDLD0/LLN0$DS1", [1] * 6, v, [[4]] * 6))
+tcp(5.82, False, rep[:40]); tcp(5.8201, False, rep[40:])
+oper = mf.tlv(0xA2, mf.boolean(True) + mf.tlv(0xA2, mf.tlv(0x85, b"\x03") + mf.tlv(0x89, b"SCADA")) + mf.tlv(0x86, b"\x07") +
+              mf.utc(T + 6) + mf.boolean(False) + mf.tlv(0x84, b"\x06\x00"))
+tcp(6.00, True, mf.mms_dt(mf.write_req(4, [("DEMO_IEDLD0", "Q0XCBR1$CO$Pos$Oper")], [oper])))
+tcp(6.01, False, mf.mms_dt(mf.write_resp(4)))
+tcp(6.30, False, mf.mms_dt(mf.command_termination("DEMO_IEDLD0", "Q0XCBR1$CO$Pos$Oper")))
+tcp(6.80, True, mf.mms_dt(mf.write_req(5, [("DEMO_IEDLD0", "Q0XCBR1$CO$Pos$Oper")], [oper])))
+tcp(6.81, False, mf.mms_dt(mf.write_resp(5)))
+tcp(7.00, False, mf.mms_dt(mf.command_termination("DEMO_IEDLD0", "Q0XCBR1$CO$Pos$Oper", 10)))
+tcp(9.00, True, b"", 0x11); tcp(9.001, False, b"", 0x11)
 out.sort(key=lambda x:x[0])
 w=PcapWriter('demo_goose_sv.pcap',linktype=1)
 for ts,fr in out:

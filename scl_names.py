@@ -24,6 +24,9 @@ class SclNames:
         self.goose = {}       # gocbRef -> {index path: name}
         self.goose_ds = {}    # gocbRef -> data set reference
         self.goose_ied = {}   # gocbRef -> IED name
+        self.ds_names = {}    # "IEDLD/LLN0$DS" -> [entry names] (MMS reports)
+        self.rpt = {}         # RptID -> data set reference
+        self.ip_ied = {}      # IP address -> IED name
         self.ld_names = set() # LD inst names (to split <IED><LD> of gocbRef without SCL entry)
         self.sv = {}          # svID -> [channel names]
         self.sv_cb = {}       # svID -> [SV control blocks with this smvID]: IED, LD, name, confRev, smpRate, address, channels
@@ -57,6 +60,12 @@ class SclNames:
             types["dat"] = {e.get("id"): e for e in dtt.findall(q("DAType"))}
         n0 = len(self.goose) + len(self.sv)
         addr = self._smv_addresses(root, q)
+        com = root.find(q("Communication"))
+        if com is not None:
+            for cap in com.iter(q("ConnectedAP")):
+                for pp in cap.iter(q("P")):
+                    if pp.get("type") == "IP" and (pp.text or "").strip():
+                        self.ip_ied[pp.text.strip()] = cap.get("iedName", "")
         for ied in root.findall(q("IED")):
             iname = ied.get("name", "")
             lnvals = self._ln_values(ied, q)
@@ -72,6 +81,17 @@ class SclNames:
                     key = (ln.get("prefix", "") or "") + ln.get("lnClass", "") + (ln.get("inst", "") or "")
                     lns[key] = ln.get("lnType")
                 dsets = {d.get("name"): d for d in ln0.findall(q("DataSet"))}
+                for dn, d in dsets.items():                # data sets for MMS reports
+                    ent = self._entries(d, lns, types, q)
+                    self.ds_names["%s%s/LLN0$%s" % (iname, ldi, dn)] = [ent[k] for k in sorted(
+                        (k for k in ent if "." not in k), key=int)]
+                for ln in [ln0] + ld.findall(q("LN")):
+                    lnn = (ln.get("prefix", "") or "") + ln.get("lnClass", "") + (ln.get("inst", "") or "")
+                    for rc in ln.findall(q("ReportControl")):
+                        dsr = "%s%s/LLN0$%s" % (iname, ldi, rc.get("datSet") or "")
+                        br = "BR" if rc.get("buffered") == "true" else "RP"
+                        rid = rc.get("rptID") or "%s%s/%s$%s$%s" % (iname, ldi, lnn, br, rc.get("name"))
+                        self.rpt[rid] = dsr
                 for gc in ln0.findall(q("GSEControl")):
                     ds = dsets.get(gc.get("datSet"))
                     ref = "%s%s/LLN0$GO$%s" % (iname, ldi, gc.get("name"))
@@ -241,6 +261,14 @@ class SclNames:
     def sv_name(self, svid, ch):
         L = self.sv.get(svid)
         return L[ch] if L and ch < len(L) else ""
+
+    def report_names(self, rptid, datset=None):
+        """names of the data set entries of a report (by DatSet of the report, else by RptID)"""
+        if datset:
+            L = self.ds_names.get(datset.replace(".", "$")) or self.ds_names.get(datset)
+            if L:
+                return L
+        return self.ds_names.get(self.rpt.get(rptid, ""), [])
 
     def summary(self):
         return "%d GOOSE + %d SV control blocks from %d file(s)" % (len(self.goose), len(self.sv), len(self.files))

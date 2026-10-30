@@ -195,3 +195,54 @@ g3["entries"][1]["value"] = {"validity": "invalid", "test": True, "flags": ["old
 q = sc.decode(gp.build_frame(g3, "02:00:00:00:00:01", 1793300000.0, 8), full=True)["data"][1][2]
 assert q.startswith("0100001100011") and "oldData" in q and "operatorBlocked" in q, q
 print("QUALITY OK")
+
+
+# ---- MMS passive: TCP reassembly, initiate, read, write, reports (reasons, names from SCL), LastApplError
+import mms
+import struct as _st
+names = sn.SclNames().load([os.path.join(R, "tools", "demo_ied.cid")])
+D = mms.MmsDecoder(names)
+CL, SV_ = ("00:50:56:00:00:10", "192.168.1.10", 50001), ("00:0A:DC:00:00:20", "192.168.1.20", 102)
+sq = {"c": 1000, "s": 5000}
+
+
+def tsend(fromc, payload=b"", flags=0x18):
+    a, b = (CL, SV_) if fromc else (SV_, CL)
+    k = "c" if fromc else "s"
+    fr = mf.ipv4_tcp(b[0], a[0], a[1], b[1], a[2], b[2], sq[k], 0, flags, payload)
+    sq[k] += len(payload) + (1 if flags & 0x03 else 0)
+    return D.feed(fr, 1793300000.0)
+
+
+o = tsend(True, flags=0x02) + tsend(False, flags=0x12) + tsend(True, mf.cotp_cr()) + tsend(False, mf.cotp_cr(True))
+o += tsend(True, mf.mms_connect(mf.initiate())) + tsend(False, mf.mms_connect(mf.initiate(True), True))
+o += tsend(True, mf.mms_dt(mf.read_req(2, [("DEMO_IEDLD0", "GGIO1$ST$Ind1$stVal"), ("DEMO_IEDLD0", "MMXU1$MX$TotW$mag$f")])))
+o += tsend(False, mf.mms_dt(mf.read_resp(2, [mf.boolean(True), mf.tlv(0x80, b"\x0a")])))
+vals = [mf.boolean(True), mf.quality(0), mf.tlv(0x87, b"\x08" + _st.pack(">f", 12.5))]
+rep = mf.mms_dt(mf.report("DEMO_IED_urcbA", 3, 1793300002, "DEMO_IEDLD0/LLN0$DS1", [1, 1, 0, 1, 0, 0], vals, [[1], [2], [4]]))
+o += tsend(False, rep[:30]) + tsend(False, rep[30:])                    # report in two TCP segments
+o += tsend(False, mf.mms_dt(mf.last_appl_error("DEMO_IEDLD0/Q0XCBR1$CO$Pos", 10)))
+o += tsend(True, flags=0x11)
+types = [m["mtype"] for m in o]
+assert types == ["TCP connect request", "TCP connect accept", "COTP connect request (CR)", "COTP connect confirm (CC)",
+                 "Initiate request", "Initiate response", "GetDataValues request", "GetDataValues response", "Report",
+                 "LastApplError (control failed)", "TCP close"], types
+rd = o[7]
+assert rd["invoke"] == 2 and rd["bad"] and rd["tree"][0][2] == "DEMO_IEDLD0/GGIO1.Ind1.stVal [ST]" and rd["tree"][0][3] == "TRUE"
+rp = o[8]
+assert rp["reason"] == "data change, quality change, integrity (period)" and rp["ref"] == "DEMO_IED_urcbA", rp["reason"]
+ent = [x for x in rp["tree"] if x[2].startswith("Entry")]
+assert [x[2] for x in ent] == ["Entry 1  [data change]", "Entry 2  [quality change]", "Entry 4  [integrity (period)]"]
+assert ent[2][3] == "12.5" and ent[2][5] == "LD0/MMXU1.TotW.mag.f [MX]", ent
+assert o[9]["reason"] == "AddCause: Blocked-by-interlocking" and o[4]["info"] == "max PDU 65000 bytes"
+o = tsend(True, flags=0x02)
+o += tsend(True, mf.mms_dt(mf.write_req(9, [("DEMO_IEDLD0", "Q0XCBR1$CO$Pos$Oper")], [mf.tlv(0xA2, mf.boolean(True))])))
+o += tsend(False, mf.mms_dt(mf.write_resp(9)))
+o += tsend(False, mf.mms_dt(mf.command_termination("DEMO_IEDLD0", "Q0XCBR1$CO$Pos$Oper")))
+o += tsend(False, mf.mms_dt(mf.command_termination("DEMO_IEDLD0", "Q0XCBR1$CO$Pos$Oper", 10)))
+t = [(m["mtype"], m["reason"], sorted(m["cats"])) for m in o]
+assert t[1][0] == "Operate request" and t[2][0] == "Operate response", t
+assert t[3] == ("CommandTermination (positive)", "", ["cs"]), t[3]
+assert t[4] == ("CommandTermination (negative)", "AddCause: Blocked-by-interlocking", ["cs", "error"]), t[4]
+assert rp["cats"] == {"report"} and rd["cats"] == {"cs", "error"} and o[0]["cats"] == {"transport"}
+print("MMS OK")

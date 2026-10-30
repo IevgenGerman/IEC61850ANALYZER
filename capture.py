@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 capture.py - network adapters and capture threads (Npcap + Scapy on Windows, libpcap on Linux).
-Only GOOSE (0x88B8), SV (0x88BA) and PTP (0x88F7, UDP 319 / 320) frames are captured (BPF filter,
+Only GOOSE (0x88B8), SV (0x88BA) and PTP (0x88F7, UDP 319 / 320) and MMS (TCP 102) frames are captured (BPF filter,
 with and without VLAN tag).
 A capture thread gives raw frames to a callback: on_frame(net, frame bytes, time stamp).
 """
@@ -9,9 +9,9 @@ import threading
 import time
 
 BPF = ("ether proto 0x88b8 or ether proto 0x88ba or ether proto 0x88f7 or "
-       "(udp and (port 319 or port 320)) or "
+       "(udp and (port 319 or port 320)) or (tcp port 102) or "
        "(vlan and (ether proto 0x88b8 or ether proto 0x88ba or ether proto 0x88f7 or "
-       "(udp and (port 319 or port 320))))")
+       "(udp and (port 319 or port 320)) or (tcp port 102)))")
 
 
 class CaptureError(Exception):

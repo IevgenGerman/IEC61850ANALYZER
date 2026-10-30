@@ -1,22 +1,18 @@
-IEC61850ANALYZER v0.3.0 - GOOSE Publisher (simulation of IEDs from CID / SCD)
+IEC61850ANALYZER v0.4.1 - MMS message groups and IEC 61850 service names
 
-New tab "GOOSE Publisher": publish the GOOSE of IEDs from their SCL
-files, e.g. to test subscriptions and logic during commissioning.
-
-- Load CID / SCD: control blocks, MAC, APPID, VLAN / priority, goID,
-  confRev, MinTime / MaxTime and the type of every data set entry are
-  taken from the file (CID: only its own IED, SCD: all IEDs)
-- Several IEDs / control blocks at the same time (tick the ones to send)
-- Values set by hand: BOOLEAN, Dbpos, Enum, integers, analog FLOAT32,
-  strings; double click for quick input, editor always visible
-- Quality: validity and every bit (overflow, outOfRange, badReference,
-  oscillatory, failure, oldData, inconsistent, inaccurate, substituted,
-  test, operatorBlocked); buttons to set all qualities of a data set
-- Simulation flag ON by default (field simulation + Reserved1 S bit);
-  OFF only after a confirmation. Needs commissioning flag
-- Confirmation before Start, STOP ALL, stop when the program closes
-- IEC 61850-8-1 retransmission: at once, MinTime, 2x, 4x ... MaxTime;
-  TAL = 2 x time to the next message
-- CONFLICT warning when the same gocbRef comes from another device
+MMS / Passive:
+- Buttons "Show: Report / Client / Server / Protocol error /
+  TCP / COTP / Session" to show or hide groups of messages (like the
+  IEDScout sniffer); the choice is saved. A message with an error
+  (e.g. Read with object-non-existent) belongs to Client / Server and
+  to Protocol error
+- IEC 61850 (ACSI) service names instead of the MMS ones: GetDataValues,
+  SetDataValues, Select, SelectWithValue, Operate, Cancel,
+  Get / SetURCBValues, Get / SetBRCBValues, GetServerDirectory,
+  GetLogicalDeviceDirectory, GetDataSetDirectory, GetDataDirectory ...
+  (the MMS service is shown in Details)
+- CommandTermination (positive / negative) after Operate, negative with
+  the AddCause in plain words
+- Exe name: "IEC61850ANALYZER v0.4.1.exe"
 
 Author: German Ievgen - ge.scout@gevernova.com
