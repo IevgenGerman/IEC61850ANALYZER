@@ -1,35 +1,27 @@
-IEC61850ANALYZER v0.6.2 - MMS Active: Control (commands)
+IEC61850ANALYZER v0.6.3 - MMS Active: reports through a free RCB
 
-Commands to the IED from the tab MMS / Active. Off by default; switched
-on with the checkbox 'Control (commands)' and a warning.
+The program enables a free report control block of the IED itself and
+shows the reports - signal changes without SCADA and without polling.
 
-- Right-click a data object -> Control... (window like the Control
-  window of IEDScout)
-- Before a command: ctlModel, sboTimeout, stVal / q, Loc, Mod / Beh of
-  the LN are read; warnings for status-only, local, Beh not on
-- ctlVal (BOOLEAN, Tcmd lower / higher / stop, INTEGER, FLOAT,
-  AnalogueValue), originator category station-control, originator
-  identification = name of the PC, Synchrocheck and Interlock-check set,
-  Test not set
-- All control models: direct / SBO with normal / enhanced security -
-  Select (SBO / SBOw), Operate, Cancel, CommandTermination awaited with
-  a timeout, LastApplError with AddCause in plain words
-- Every command is confirmed and written to
-  IEC61850ANALYZER_commands.csv in the home folder
-- Settings (SP / SG / SE) and RCBs are never written
-- Big LNs (GGIO2 / GGIO3 / LLN0 of GE UR) whose type does not fit into
-  one PDU (service error pdu-size): types and values read level by level
-  (LN$FC, LN$FC$DO ...) - Values, Monitor, Data sets and Control work;
-  MMS errors in plain words
-- Log of the Active tab: InformationReport / CommandTermination /
-  LastApplError decoded
-- Antivirus false positive (Defender) on the exe: the program no longer
-  starts anything as administrator and does not call PowerShell - the
-  window 'IED IP on this PC' shows and copies the netsh commands; DHCP of
-  the adapter is read from the registry; exe built without UPX (--noupx)
+- Control blocks: select a free RCB with a data set -> Enable reports:
+  only Resv (URCB), RptEna and GI are written; DatSet, TrgOps, OptFlds
+  and IntgPd are not changed; RCBs used by SCADA are never touched
+- RCBs without a data set are hidden (checkbox 'Show RCBs without data
+  set'); the own RCB is shown in blue 'ENABLED BY THIS PROGRAM'
+- New tab Reports: signals of the data set, value (TRUE / on green,
+  changed yellow), reason, time, RptID / SqNum, number of changes
+- 'Give the reports to Report test': the received reports go to
+  MMS / Report test - RCB / data set test against the CID without SCADA
+- RCBs / GoCBs that the IED does not list and whose LLN0 type does not
+  fit into one PDU (GE UR) are found with the names of the loaded CID
+- An RCB reserved / enabled by this PC (Owner = own IP, e.g. from an
+  earlier connection) is shown 'by this PC' and can be enabled or
+  released; Disable reports releases the reservation (Resv FALSE /
+  ResvTms 0); green button Enable reports, double-click a RCB
+- Disable reports, Disconnect and closing the program give the RCB back
+  (RptEna FALSE, Resv FALSE)
 
-Tested with the libiec61850 control server: the 4 control models,
-Cancel, negative CommandTermination, Operate without Select ->
-Object-not-selected.
+Tested with the IED simulator (F60 CID: BRCB01 BIN_INPUT - GI, data
+change of UsrPbIHMI1 / Bkr0XCBR1.Pos, RCB free again after Disable).
 
 Author: German Ievgen - ge.scout@gevernova.com

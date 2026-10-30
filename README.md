@@ -1,4 +1,4 @@
-# IEC61850ANALYZER (GOOSE / SV / PTP / MMS / GOOSE Publisher) — v0.6.2
+# IEC61850ANALYZER (GOOSE / SV / PTP / MMS / GOOSE Publisher) — v0.6.3
 
 Програма для перегляду трафіку **GOOSE**, **Sampled Values (9-2 / 9-2LE)** і **PTP (IEEE 1588 / IEC 61850-9-3)** у мережі, за зразком вікна Sniffer в OMICRON IEDScout. Автор: German Ievgen.
 
@@ -12,7 +12,7 @@ MMS у цій версії не розбирається.
    pip install -r requirements.txt
    python sniffer.py
    ```
-   або зібрати `.exe`: двічі клацнути `build_exe.bat`. Результат: `dist\IEC61850ANALYZER v0.6.2.exe`.
+   або зібрати `.exe`: двічі клацнути `build_exe.bat`. Результат: `dist\IEC61850ANALYZER v0.6.3.exe`.
 3. Якщо адаптер не відкривається, запустіть програму від імені адміністратора.
 
 ## Вікно
@@ -86,7 +86,7 @@ MMS у цій версії не розбирається.
 
 ### MMS → Active (MMS-клієнт, лише читання)
 
-Програма сама підключається до IED (TCP 102, одне з'єднання) і нічого в IED не записує, крім **команд**, якщо їх увімкнено (див. Control нижче; уставки і RCB не записуються).
+Програма сама підключається до IED (TCP 102, одне з'єднання) і нічого в IED не записує, крім **команд**, якщо їх увімкнено, і Resv / RptEna / GI вільного RCB, який ви самі вмикаєте для звітів; уставки не записуються.
 1. (необов'язково) **Load CID / SCD...** → IED: IP-адреси IED у списку IP і модель для порівняння.
 2. **IP**, **Port** (102) → **Connect**. Одразу читається модель: логічні пристрої, усі змінні (GetNameList), датасети. У рядку стану — виробник / модель / версія (Identify) і max PDU.
 3. **Дерево моделі** LD → LN → FC (ST status, MX measurands, CO, CF, DC …) → DO → DA. Вибір вузла = читання (GetDataValues) у вкладці **Values** з назвами атрибутів, типами, quality людською мовою. Великий LN, який не вміщується в PDU, читається по FC. Правий клік — Read, Add to monitor, копіювати посилання (MMS `LD/LN$FC$DO` або 61850 `LD/LN.DO [FC]`).
@@ -96,7 +96,8 @@ MMS у цій версії не розбирається.
 6. **Read control blocks** — усі URCB / BRCB / GoCB: **State** — *free*, *reserved by IP*, *IN USE - enabled by IP* (Owner — IP клієнта, що зайняв RCB, напр. SCADA), *publishing / disabled* для GoCB; RptID / GoID, DatSet, ConfRev, TrgOps, OptFlds, IntgPd, BufTm, MAC / APPID / VLAN.
 7. **Compare with CID** — логічні пристрої і вузли, датасети (склад і порядок, по елементах), RCB (RptID, DatSet, ConfRev, TrgOps, IntgPd; екземпляри `name01`, `name02` …), GoCB (GoID, DatSet, ConfRev, MAC, APPID, VLAN). Зелене — збігається, червоне — відмінність. Датасети, яких немає в CID (налаштовані в IED, GE UR), — сірим як інформація.
 8. **Log** — що зроблено і помилки; галочка *Show every MMS PDU* — кожен PDU клієнта.
-9. **Control (commands)** — за замовчуванням вимкнено; галочка вмикає з попередженням (команди керують реальним обладнанням). Правий клік на DO (`CSWI1 / CO / Pos` або `ST / Pos`) → **Control...** — вікно як Control в IEDScout:
+9. **Звіти через вільний RCB** — вкладка **Control blocks** → вибрати RCB з датасетом у стані *free* → **Enable reports**: програма записує лише Resv (URCB), RptEna = TRUE і GI (DatSet / TrgOps / OptFlds / IntgPd не змінює); RCB, зайняті SCADA, не чіпає; RCB без датасету сховані (галочка *Show RCBs without data set*). Свій RCB — синім *ENABLED BY THIS PROGRAM*. Вкладка **Reports**: сигнали датасету, значення (TRUE / on зеленим, змінене — жовтим), причина, час, RptID / SqNum, кількість змін. Галочка *Give the reports to Report test* — звіти йдуть у **Report test** (тест RCB без SCADA). **Disable reports** або Disconnect / закриття програми повертають RCB (RptEna FALSE, Resv FALSE).
+10. **Control (commands)** — за замовчуванням вимкнено; галочка вмикає з попередженням (команди керують реальним обладнанням). Правий клік на DO (`CSWI1 / CO / Pos` або `ST / Pos`) → **Control...** — вікно як Control в IEDScout:
    - читається ctlModel, sboTimeout, stVal / q, Loc (local → червоним), Mod / Beh LN; попередження (status-only, local, Beh не on);
    - ctlVal (TRUE / FALSE, lower / higher / stop, число), Originator category (station-control), Originator identification (ім'я ПК), Synchrocheck ✓, Interlock-check ✓, Test ☐;
    - **Select** (sbo-normal: читання SBO; sbo-enhanced: SBOw), **Operate** (enhanced: очікування CommandTermination, тайм-аут 10 с), **Cancel**; кожна команда — підтвердження;

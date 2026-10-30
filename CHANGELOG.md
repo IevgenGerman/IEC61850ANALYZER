@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## v0.6.3 (2026-10-30)
+- **MMS → Active: звіти через вільний RCB.** Control blocks → RCB з датасетом у стані *free* → **Enable reports** (Resv для URCB, RptEna, GI; DatSet / TrgOps / OptFlds / IntgPd не змінюються); RCB, зайняті SCADA, не чіпаються; **Disable reports**, Disconnect і закриття програми повертають RCB.
+- RCB без датасету сховані (галочка *Show RCBs without data set*), свій RCB — синім *ENABLED BY THIS PROGRAM*.
+- Нова вкладка **Reports**: сигнали датасету, значення (TRUE / on зеленим, змінене жовтим), причина, час, RptID / SqNum, кількість змін.
+- Вкладка Control blocks: якщо RCB ще не прочитані — підказка, і вони читаються самі при відкритті вкладки (з'єднання є).
+- RCB / GoCB, яких IED не показує в списку імен і тип LLN0 / LLN0$BR не вміщується в PDU (GE UR): шукаються за іменами з завантаженого CID (Load CID / SCD...); що зроблено — у Log.
+- RCB, зарезервований / увімкнений **цим ПК** (Owner = власна IP, напр. з попереднього з'єднання), показується синім *by this PC* і його можна вмикати / вимикати; Disable reports знімає резервування (URCB Resv FALSE, BRCB ResvTms 0).
+- Вкладка Control blocks: зелена кнопка ▶ Enable reports, подвійний клік на RCB — увімкнути / вимкнути.
+- *Give the reports to Report test*: отримані звіти йдуть у **MMS → Report test** — перевірка RCB / датасетів за CID без SCADA.
+
 ## v0.6.2 (2026-10-30)
 - **MMS → Active: команди (Control)** — за замовчуванням вимкнено, вмикається галочкою *Control (commands)* з попередженням:
   - правий клік на DO → **Control...** (або кнопка Control...) — вікно як Control в IEDScout;

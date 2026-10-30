@@ -409,3 +409,32 @@ _I = dict(ctl_model=4, loc="local", mod="on (1)", beh="test (3)", oper_type=_ope
 _w = " | ".join(mct.warnings(_I))
 assert "Blocked-by-switching-hierarchy" in _w and "Beh test" in _w
 print("CONTROL OK")
+
+
+# ---- own reports through a free RCB (Active) against the simulator
+SM2 = imd.load(_cid)
+SRV2 = msv.Server(SM2)
+_sk = _s.socket()
+_sk.bind(("127.0.0.1", 0))
+_port = _sk.getsockname()[1]
+_sk.close()
+SRV2.start("127.0.0.1", _port)
+_rp = []
+cl = mcl.MmsClient(on_unconfirmed=_rp.append)
+cl.connect("127.0.0.1", _port)
+om = ma.browse(cl)
+ma.read_cbs(cl, om)
+rcb = om["rcbs"][0]
+assert ma.can_enable(rcb)[0]
+ok, txt = ma.enable_rcb(cl, rcb)
+assert ok and "GI" in txt, txt
+ma.read_cbs(cl, om)
+assert not ma.can_enable(om["rcbs"][0])[0]               # now in use
+_t.sleep(0.2)
+assert any((mms.parse_pdu(p).get("report") or {}).get("entries") for p in _rp)
+assert ma.disable_rcb(cl, rcb)[0]
+ma.read_cbs(cl, om)
+assert ma.in_use(om["rcbs"][0]) == "free"
+cl.close()
+SRV2.stop()
+print("OWN REPORTS OK")
