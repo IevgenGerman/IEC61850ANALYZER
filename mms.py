@@ -119,6 +119,25 @@ def ref61850(name):
     return "%s/%s" % (dom, ".".join(parts))
 
 
+ERR_CLASS = ["vmd-state", "application-reference", "definition", "resource", "service", "service-preempt",
+             "time-resolution", "access", "initiate", "conclude", "cancel", "file", "others"]
+ERR_CODES = {2: ["other", "object-undefined", "invalid-address", "type-unsupported", "type-inconsistent",
+                 "object-exists", "object-attribute-inconsistent"],
+             3: ["other", "memory-unavailable", "processor-resource-unavailable", "mass-storage-unavailable",
+                 "capability-unavailable", "capability-unknown"],
+             4: ["other", "primitives-out-of-sequence", "object-state-conflict", "pdu-size (answer too big)",
+                 "continuation-invalid", "object-constraint-conflict"],
+             7: ["other", "object-access-unsupported", "object-non-existent", "object-access-denied",
+                 "object-invalidated"]}
+
+
+def error_text(cls, code):
+    """MMS ServiceError -> 'service: pdu-size (answer too big)'"""
+    c = ERR_CLASS[cls] if 0 <= cls < len(ERR_CLASS) else "class %d" % cls
+    names = ERR_CODES.get(cls, [])
+    return "%s: %s" % (c, names[code] if 0 <= code < len(names) else "code %d" % code)
+
+
 def binary_time(v):
     """MMS TimeOfDay / BinaryTime (6 bytes: ms of the day + days since 1984-01-01)"""
     if len(v) == 6:
@@ -222,7 +241,7 @@ def parse_pdu(b, names=None, pending=None, conn=None, learned=None):
                 for c3, cn3, n3, v3, e3, _ in ber(b, v2, e2):
                     if n3 == 0:
                         for c4, cn4, n4, v4, e4, _ in ber(b, v3, e3):
-                            r["info"] = "error class %d, code %d" % (n4, sc.uint(b[v4:e4]))
+                            r["info"] = error_text(n4, sc.uint(b[v4:e4]))
         T.add("", "Error", r["info"])
     elif num == 3:
         _unconfirmed(b, v, e, r, names, learned)

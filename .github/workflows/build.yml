@@ -34,7 +34,7 @@ jobs:
         run: |
           $name = python exe_name.py
           echo "EXENAME=$name" >> $env:GITHUB_ENV
-          pyinstaller --clean --onefile --windowed --name "$name" --hidden-import scapy.all --collect-submodules scapy sniffer.py
+          pyinstaller --clean --onefile --noupx --windowed --name "$name" --hidden-import scapy.all --collect-submodules scapy sniffer.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

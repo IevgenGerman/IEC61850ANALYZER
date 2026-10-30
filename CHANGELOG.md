@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## v0.6.2 (2026-10-30)
+- **MMS → Active: команди (Control)** — за замовчуванням вимкнено, вмикається галочкою *Control (commands)* з попередженням:
+  - правий клік на DO → **Control...** (або кнопка Control...) — вікно як Control в IEDScout;
+  - перед командою читаються ctlModel, sboTimeout, stVal / q, Loc, Mod / Beh — попередження (status-only, local, Beh не on);
+  - ctlVal (BOOLEAN, Tcmd lower / higher / stop, INTEGER, FLOAT, AnalogueValue), Originator category station-control, orIdent = ім'я ПК, Synchrocheck / Interlock-check увімкнені, Test вимкнений;
+  - усі моделі керування: direct / SBO з normal / enhanced security — Select (SBO / SBOw), Operate, Cancel, очікування CommandTermination (тайм-аут), LastApplError з **AddCause**;
+  - кожна команда — підтвердження; журнал `IEC61850ANALYZER_commands.csv` у домашній папці;
+  - уставки (SP / SG / SE) і RCB не записуються.
+- Перевірено з сервером libiec61850 (server_example_control: усі 4 моделі, Cancel, негативний CommandTermination, Operate без Select → Object-not-selected).
+- MMS Active: InformationReport / CommandTermination / LastApplError у Log з розшифровкою.
+- MMS Active: великі LN (GGIO2 / GGIO3 / LLN0 GE UR), тип яких не вміщується в один PDU (*service: pdu-size*), читаються по рівнях: LN$FC, LN$FC$DO … — Values, Monitor, Data sets і Control працюють і для них; помилки MMS людською мовою (*definition: object-undefined*, *service: pdu-size* …).
+- IED Simulator: GetVariableAccessAttributes завеликого типу → service error pdu-size (як IED).
+- **Антивірус (хибне спрацювання Defender на exe):** програма більше сама не запускає нічого від імені адміністратора і не викликає PowerShell — вікно *IED IP on this PC* показує команди netsh і копіює їх (**Copy: add IP / remove IP / restore DHCP**), їх виконують у cmd від імені адміністратора; DHCP адаптера перевіряється через реєстр Windows; exe збирається без UPX (`--noupx`).
+
 ## v0.6.1 (2026-10-30)
 - Нова вкладка **IED Simulator** — MMS-сервер одного IED з CID / SCD для перевірки сигналів у SCADA без IED (кілька клієнтів одночасно):
   - ISO-стек (COTP / Session / Presentation / ACSE / MMS Initiate), Identify (manufacturer / type / configVersion з CID), GetNameList, Read (змінні і датасети), GetVariableAccessAttributes, GetNamedVariableListAttributes, Write атрибутів RCB;

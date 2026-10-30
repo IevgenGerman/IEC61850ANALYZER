@@ -1,36 +1,35 @@
-IEC61850ANALYZER v0.6.1 - IED Simulator (MMS server from a CID)
+IEC61850ANALYZER v0.6.2 - MMS Active: Control (commands)
 
-New tab IED Simulator: the PC answers as one IED of a CID / SCD, so
-signals can be checked in SCADA (Zenon, IEDScout, ...) without the IED.
-Several clients at the same time.
+Commands to the IED from the tab MMS / Active. Off by default; switched
+on with the checkbox 'Control (commands)' and a warning.
 
-- ISO stack (COTP, Session, Presentation, ACSE, MMS Initiate), Identify
-  (manufacturer / type / configVersion of the CID), GetNameList, Read
-  (variables and data sets), GetVariableAccessAttributes,
-  GetNamedVariableListAttributes, Write of RCB attributes
-- Model from the CID: LN / FC / DO / DA, values of DAI / Val, data sets,
-  report control blocks (indexed instances), GOOSE control blocks
-- Reports URCB / BRCB: reservation (Resv / ResvTms / Owner = client IP),
-  TrgOps dchg / qchg / dupd / integrity / GI, BufTm, OptFlds, buffering
-  of BRCBs while disabled (EntryID, BufOvfl, PurgeBuf)
-- Values set by hand: Set (data change), Toggle / double-click,
-  Update (data update), Quality (validity + detail bits) -> quality
-  change; the time stamp t follows
-- Find a signal, Clients, Report control blocks, Log
-- Listen IP in plain words (all addresses / this PC + adapter / IED IP
-  on this PC or not) with a hint which IP SCADA must use; button
-  'IED IP on this PC...' adds the IED IP (mask of the CID) to an adapter
-  with netsh as administrator, and removes it after the test; warning for
-  a DHCP adapter (a fixed IP switches DHCP off), Restore DHCP
-- Commands from SCADA are refused (object-access-denied)
-- Reports caused by a request (GI, BRCB buffer) are sent after its
-  response; an internal error is written to the Log instead of closing
-  the association; option Log every MMS PDU
-- ReasonCode of the reports with 6 bits (as the IEDs): with 7 bits
-  IEDScout closed the association at the first report
+- Right-click a data object -> Control... (window like the Control
+  window of IEDScout)
+- Before a command: ctlModel, sboTimeout, stVal / q, Loc, Mod / Beh of
+  the LN are read; warnings for status-only, local, Beh not on
+- ctlVal (BOOLEAN, Tcmd lower / higher / stop, INTEGER, FLOAT,
+  AnalogueValue), originator category station-control, originator
+  identification = name of the PC, Synchrocheck and Interlock-check set,
+  Test not set
+- All control models: direct / SBO with normal / enhanced security -
+  Select (SBO / SBOw), Operate, Cancel, CommandTermination awaited with
+  a timeout, LastApplError with AddCause in plain words
+- Every command is confirmed and written to
+  IEC61850ANALYZER_commands.csv in the home folder
+- Settings (SP / SG / SE) and RCBs are never written
+- Big LNs (GGIO2 / GGIO3 / LLN0 of GE UR) whose type does not fit into
+  one PDU (service error pdu-size): types and values read level by level
+  (LN$FC, LN$FC$DO ...) - Values, Monitor, Data sets and Control work;
+  MMS errors in plain words
+- Log of the Active tab: InformationReport / CommandTermination /
+  LastApplError decoded
+- Antivirus false positive (Defender) on the exe: the program no longer
+  starts anything as administrator and does not call PowerShell - the
+  window 'IED IP on this PC' shows and copies the netsh commands; DHCP of
+  the adapter is read from the registry; exe built without UPX (--noupx)
 
-Tested with the own MMS client (Active: compare with the CID - no
-difference) and with the libiec61850 client (GI / data change reports).
-MMS client: Write (tests), close sends FIN at once.
+Tested with the libiec61850 control server: the 4 control models,
+Cancel, negative CommandTermination, Operate without Select ->
+Object-not-selected.
 
 Author: German Ievgen - ge.scout@gevernova.com

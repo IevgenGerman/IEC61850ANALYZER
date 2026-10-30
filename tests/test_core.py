@@ -394,3 +394,18 @@ assert cl2.write(D, I + "$RptEna", b"\x83\x01\xff") is None
 cl2.close()
 SRV.stop()
 print("IED SIMULATOR OK (%d variables, %d reports)" % (sum(len(v) for v in SM["index"].values()), len(reps)))
+
+
+# ---- Control: Oper structure following the type of the IED
+import mms_control as mct
+_oper = dict(kind="struct", comps=[("ctlVal", dict(kind="BOOLEAN")), ("origin", dict(kind="struct", comps=[
+    ("orCat", dict(kind="INTEGER")), ("orIdent", dict(kind="OCTET STRING"))])), ("ctlNum", dict(kind="UNSIGNED")),
+    ("T", dict(kind="UTC TIME")), ("Test", dict(kind="BOOLEAN")), ("Check", dict(kind="BIT STRING"))])
+_b = mct.enc_struct(_oper, True, 2, "PC1", 7, False, True, True, now=1793300000.0)
+assert _b.startswith(bytes.fromhex("a2")) and bytes.fromhex("8301ff") in _b and bytes.fromhex("a2088501028903504331") in _b
+assert _b.endswith(bytes.fromhex("830100840206c0")) and bytes.fromhex("860107") in _b, _b.hex()
+assert mct.ctl_kind(dict(kind="BIT STRING")) == "tcmd" and mct.enc_ctl_val(dict(kind="BIT STRING"), "higher") == bytes.fromhex("84020680")
+_I = dict(ctl_model=4, loc="local", mod="on (1)", beh="test (3)", oper_type=_oper)
+_w = " | ".join(mct.warnings(_I))
+assert "Blocked-by-switching-hierarchy" in _w and "Beh test" in _w
+print("CONTROL OK")
