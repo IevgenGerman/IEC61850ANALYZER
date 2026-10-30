@@ -57,7 +57,7 @@ import active_tab                # noqa: E402
 import sim_tab                   # noqa: E402
 
 APP = "IEC61850ANALYZER"
-VERSION = "v 0.6.3"
+VERSION = "v 0.6.4"
 MAX_ROWS = 50000                 # per tab; older rows are dropped
 DRAIN_PER_TICK = 4000            # messages moved from the capture queue to the view per 100 ms
 GREY = "#9a9a9a"

@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## v0.6.4 (2026-10-30)
+- **MMS → Active: Export to Excel...** — .xlsx з аркушами Info, Model (усі атрибути з типом і значенням на момент експорту, посилання 61850), Data sets, Control blocks, Compare with CID; закріплений заголовок і фільтри. Без додаткових бібліотек (власний запис xlsx), requirements.txt не змінюється.
+
 ## v0.6.3 (2026-10-30)
 - **MMS → Active: звіти через вільний RCB.** Control blocks → RCB з датасетом у стані *free* → **Enable reports** (Resv для URCB, RptEna, GI; DatSet / TrgOps / OptFlds / IntgPd не змінюються); RCB, зайняті SCADA, не чіпаються; **Disable reports**, Disconnect і закриття програми повертають RCB.
 - RCB без датасету сховані (галочка *Show RCBs without data set*), свій RCB — синім *ENABLED BY THIS PROGRAM*.

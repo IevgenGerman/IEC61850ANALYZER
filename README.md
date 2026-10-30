@@ -1,4 +1,4 @@
-# IEC61850ANALYZER (GOOSE / SV / PTP / MMS / GOOSE Publisher) — v0.6.3
+# IEC61850ANALYZER (GOOSE / SV / PTP / MMS / GOOSE Publisher) — v0.6.4
 
 Програма для перегляду трафіку **GOOSE**, **Sampled Values (9-2 / 9-2LE)** і **PTP (IEEE 1588 / IEC 61850-9-3)** у мережі, за зразком вікна Sniffer в OMICRON IEDScout. Автор: German Ievgen.
 
@@ -12,7 +12,7 @@ MMS у цій версії не розбирається.
    pip install -r requirements.txt
    python sniffer.py
    ```
-   або зібрати `.exe`: двічі клацнути `build_exe.bat`. Результат: `dist\IEC61850ANALYZER v0.6.3.exe`.
+   або зібрати `.exe`: двічі клацнути `build_exe.bat`. Результат: `dist\IEC61850ANALYZER v0.6.4.exe`.
 3. Якщо адаптер не відкривається, запустіть програму від імені адміністратора.
 
 ## Вікно
@@ -97,7 +97,8 @@ MMS у цій версії не розбирається.
 7. **Compare with CID** — логічні пристрої і вузли, датасети (склад і порядок, по елементах), RCB (RptID, DatSet, ConfRev, TrgOps, IntgPd; екземпляри `name01`, `name02` …), GoCB (GoID, DatSet, ConfRev, MAC, APPID, VLAN). Зелене — збігається, червоне — відмінність. Датасети, яких немає в CID (налаштовані в IED, GE UR), — сірим як інформація.
 8. **Log** — що зроблено і помилки; галочка *Show every MMS PDU* — кожен PDU клієнта.
 9. **Звіти через вільний RCB** — вкладка **Control blocks** → вибрати RCB з датасетом у стані *free* → **Enable reports**: програма записує лише Resv (URCB), RptEna = TRUE і GI (DatSet / TrgOps / OptFlds / IntgPd не змінює); RCB, зайняті SCADA, не чіпає; RCB без датасету сховані (галочка *Show RCBs without data set*). Свій RCB — синім *ENABLED BY THIS PROGRAM*. Вкладка **Reports**: сигнали датасету, значення (TRUE / on зеленим, змінене — жовтим), причина, час, RptID / SqNum, кількість змін. Галочка *Give the reports to Report test* — звіти йдуть у **Report test** (тест RCB без SCADA). **Disable reports** або Disconnect / закриття програми повертають RCB (RptEna FALSE, Resv FALSE).
-10. **Control (commands)** — за замовчуванням вимкнено; галочка вмикає з попередженням (команди керують реальним обладнанням). Правий клік на DO (`CSWI1 / CO / Pos` або `ST / Pos`) → **Control...** — вікно як Control в IEDScout:
+10. **Export to Excel...** — один файл .xlsx (без додаткових бібліотек, відкривається в Excel / LibreOffice) з аркушами: **Info** (IED, IP, Identify, CID, дата, ПК, версія), **Model** (усі атрибути: LD, LN, FC, DO / DA, тип, значення на момент експорту, посилання 61850), **Data sets** (датасет, №, елемент 61850 / MMS, FC), **Control blocks** (RCB / GoCB: стан, RptID / GoID, DatSet, ConfRev, TrgOps, OptFlds, IntgPd, BufTm, Owner, MAC, APPID, VLAN), **Compare with CID** (якщо CID завантажено). Заголовок закріплений, фільтр у кожному стовпці.
+11. **Control (commands)** — за замовчуванням вимкнено; галочка вмикає з попередженням (команди керують реальним обладнанням). Правий клік на DO (`CSWI1 / CO / Pos` або `ST / Pos`) → **Control...** — вікно як Control в IEDScout:
    - читається ctlModel, sboTimeout, stVal / q, Loc (local → червоним), Mod / Beh LN; попередження (status-only, local, Beh не on);
    - ctlVal (TRUE / FALSE, lower / higher / stop, число), Originator category (station-control), Originator identification (ім'я ПК), Synchrocheck ✓, Interlock-check ✓, Test ☐;
    - **Select** (sbo-normal: читання SBO; sbo-enhanced: SBOw), **Operate** (enhanced: очікування CommandTermination, тайм-аут 10 с), **Cancel**; кожна команда — підтвердження;
@@ -214,6 +215,7 @@ MMS у цій версії не розбирається.
 | `rpt_test.py`, `rpt_tab.py` | MMS Report test: перевірка звітів за CID, покриття, json, CSV |
 | `mms_client.py` | MMS-клієнт: ISO-стек, Initiate, GetNameList, Read, типи, датасети |
 | `mms_active.py`, `active_tab.py` | MMS Active: модель IED, RCB / GoCB, порівняння з CID, вкладка |
+| `xlsx_lite.py` | запис .xlsx без бібліотек (Excel-експорт) |
 | `mms_control.py`, `ctl_dialog.py` | MMS Active: команди (Select / Operate / Cancel, CommandTermination, журнал) |
 | `ied_model.py`, `mms_server.py`, `sim_tab.py` | IED Simulator: модель з CID, MMS-сервер, звіти, вкладка |
 | `goose_pub.py`, `pub_tab.py` | GOOSE Publisher: SCL → кадри, відправка, вкладка |

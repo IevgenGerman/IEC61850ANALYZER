@@ -438,3 +438,14 @@ assert ma.in_use(om["rcbs"][0]) == "free"
 cl.close()
 SRV2.stop()
 print("OWN REPORTS OK")
+
+
+# ---- xlsx without extra libraries
+import zipfile
+import xlsx_lite
+_x = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_t.xlsx")
+xlsx_lite.write(_x, [("Model", ["a", "b"], [[1, "x<y"], [2.5, "ü"]]), ("DS", ["k"], [["v"]])])
+with zipfile.ZipFile(_x) as z:
+    assert "xl/worksheets/sheet2.xml" in z.namelist() and "x&lt;y" in z.read("xl/worksheets/sheet1.xml").decode()
+os.remove(_x)
+print("XLSX OK")

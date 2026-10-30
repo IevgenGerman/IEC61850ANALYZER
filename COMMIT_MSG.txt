@@ -1,27 +1,19 @@
-IEC61850ANALYZER v0.6.3 - MMS Active: reports through a free RCB
+IEC61850ANALYZER v0.6.4 - MMS Active: export to Excel
 
-The program enables a free report control block of the IED itself and
-shows the reports - signal changes without SCADA and without polling.
+Button 'Export to Excel...' on the tab MMS / Active: one .xlsx file with
+the IED read online.
 
-- Control blocks: select a free RCB with a data set -> Enable reports:
-  only Resv (URCB), RptEna and GI are written; DatSet, TrgOps, OptFlds
-  and IntgPd are not changed; RCBs used by SCADA are never touched
-- RCBs without a data set are hidden (checkbox 'Show RCBs without data
-  set'); the own RCB is shown in blue 'ENABLED BY THIS PROGRAM'
-- New tab Reports: signals of the data set, value (TRUE / on green,
-  changed yellow), reason, time, RptID / SqNum, number of changes
-- 'Give the reports to Report test': the received reports go to
-  MMS / Report test - RCB / data set test against the CID without SCADA
-- RCBs / GoCBs that the IED does not list and whose LLN0 type does not
-  fit into one PDU (GE UR) are found with the names of the loaded CID
-- An RCB reserved / enabled by this PC (Owner = own IP, e.g. from an
-  earlier connection) is shown 'by this PC' and can be enabled or
-  released; Disable reports releases the reservation (Resv FALSE /
-  ResvTms 0); green button Enable reports, double-click a RCB
-- Disable reports, Disconnect and closing the program give the RCB back
-  (RptEna FALSE, Resv FALSE)
-
-Tested with the IED simulator (F60 CID: BRCB01 BIN_INPUT - GI, data
-change of UsrPbIHMI1 / Bkr0XCBR1.Pos, RCB free again after Disable).
+- Info: IED, IP, identity (vendor / model / revision), CID, date, PC,
+  program version
+- Model: every attribute - LD, LN, FC, DO / DA, type, value at the time
+  of the export, 61850 reference (big LNs of GE UR read level by level)
+- Data sets: data set, member number, member (61850 and MMS), FC
+- Control blocks: RCB / GoCB with state (free / reserved / in use by),
+  RptID / GoID, DatSet, ConfRev, TrgOps, OptFlds, IntgPd, BufTm, Owner,
+  MAC, APPID, VLAN
+- Compare with CID: findings (when the CID is loaded)
+- Header frozen, filter in every column
+- Own xlsx writer (xlsx_lite.py): no extra library, requirements.txt
+  unchanged; checked with Excel format readers (openpyxl, LibreOffice)
 
 Author: German Ievgen - ge.scout@gevernova.com
