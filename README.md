@@ -1,4 +1,4 @@
-# IEC61850ANALYZER (GOOSE / SV / PTP / MMS / GOOSE Publisher) — v0.6.4
+# IEC61850ANALYZER (GOOSE / SV / PTP / MMS / GOOSE Publisher) — v0.6.5
 
 Програма для перегляду трафіку **GOOSE**, **Sampled Values (9-2 / 9-2LE)** і **PTP (IEEE 1588 / IEC 61850-9-3)** у мережі, за зразком вікна Sniffer в OMICRON IEDScout. Автор: German Ievgen.
 
@@ -12,7 +12,7 @@ MMS у цій версії не розбирається.
    pip install -r requirements.txt
    python sniffer.py
    ```
-   або зібрати `.exe`: двічі клацнути `build_exe.bat`. Результат: `dist\IEC61850ANALYZER v0.6.4.exe`.
+   або зібрати `.exe`: двічі клацнути `build_exe.bat`. Результат: папка `dist\IEC61850ANALYZER v0.6.5\` з exe і бібліотеками та `dist\IEC61850ANALYZER v0.6.5.zip` для передачі (збірка `--onedir`: антивіруси реагують рідше, ніж на один саморозпакувальний exe).
 3. Якщо адаптер не відкривається, запустіть програму від імені адміністратора.
 
 ## Вікно
@@ -119,8 +119,9 @@ MMS у цій версії не розбирається.
    - час `t` сигналу оновлюється сам.
 5. **Звіти**: клієнти (SCADA) самі вмикають RCB: Resv / ResvTms, RptEna, TrgOps, OptFlds, IntgPd, BufTm, DatSet, GI, PurgeBuf, EntryID. Причини: dchg, qchg, dupd, integrity (IntgPd), GI. BRCB буферизує події, поки вимкнений (EntryID, BufOvfl), і віддає їх при RptEna. Один RCB — один клієнт (іншому — temporarily-unavailable); при відключенні клієнта RCB звільняється.
 6. Вкладки **Clients** (хто підключений, запити, звіти), **Report control blocks** (free / reserved by IP / enabled by IP, RptID, DatSet, TrgOps, SqNum, кількість звітів), **Log**.
+7. Вкладка **GOOSE** — GoCB симульованого IED з CID публікуються з **тими самими значеннями і якістю**, що й звіти MMS: змінили сигнал → stNum + 1 і швидкі повтори MinTime → MaxTime (TAL = 2 × інтервал). Стовпці **Publish** (GoEna), **Simulation** (за замовчуванням ON; OFF — з попередженням), **NdsCom** — клік перемикає; **Network** — адаптер (як у GOOSE Publisher); **stNum + 1** — новий стан без зміни значень. MAC / APPID / VLAN / пріоритет / MinTime / MaxTime — з CID (GSE). Справжній IED має бути відключений (ті самі MAC / APPID / GoID).
 
-Обмеження: команди SCADA (Select / Operate) і запис значень відхиляються (object-access-denied); GOOSE не публікується (є GOOSE Publisher); файли, журнали, групи уставок не підтримуються. RCB без датасету в CID (GE UR) — DatSet порожній, SCADA може записати свій.
+Обмеження: команди SCADA (Select / Operate) і запис значень відхиляються (object-access-denied); файли, журнали, групи уставок не підтримуються. RCB без датасету в CID (GE UR) — DatSet порожній, SCADA може записати свій.
 
 ### MMS → Report test (перевірка звітів IED за CID)
 
@@ -217,7 +218,7 @@ MMS у цій версії не розбирається.
 | `mms_active.py`, `active_tab.py` | MMS Active: модель IED, RCB / GoCB, порівняння з CID, вкладка |
 | `xlsx_lite.py` | запис .xlsx без бібліотек (Excel-експорт) |
 | `mms_control.py`, `ctl_dialog.py` | MMS Active: команди (Select / Operate / Cancel, CommandTermination, журнал) |
-| `ied_model.py`, `mms_server.py`, `sim_tab.py` | IED Simulator: модель з CID, MMS-сервер, звіти, вкладка |
+| `ied_model.py`, `mms_server.py`, `sim_tab.py`, `sim_goose.py` | IED Simulator: модель з CID, MMS-сервер, звіти, GOOSE, вкладка |
 | `goose_pub.py`, `pub_tab.py` | GOOSE Publisher: SCL → кадри, відправка, вкладка |
 | `tools/demo_ied.cid` | демо-CID для тестів публікатора і MMS (синтетичний: IP 192.168.1.20, ReportControl urcbA) |
 | `.github/workflows/build.yml` | збірка exe і реліз на GitHub за тегом `v*` |

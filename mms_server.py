@@ -522,6 +522,7 @@ class Server:
         self.running = False
         self.n_reports = 0
         self.log_pdus = False
+        self.listeners = []                # f(node) after a value set by hand (GOOSE of the simulator)
         for rn in model["rcbs"]:
             rn["rcb"].update(owner=None, buffer=[], ovfl=False, pending={}, first=None, next_intg=None,
                              entry=0, sent=0)
@@ -727,6 +728,11 @@ class Server:
                 kind = "qchg" if node["btype"] == "Quality" else ("dchg" if old != value else "dupd")
             self._touch_t(node)
             self.trigger(node, kind)
+        for f in list(self.listeners):
+            try:
+                f(node)
+            except Exception:                             # noqa: BLE001
+                pass
 
     def _touch_t(self, node):
         p = node["parent"]

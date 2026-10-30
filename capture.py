@@ -27,8 +27,13 @@ def _scapy():
         raise CaptureError("Scapy is not installed (pip install scapy): %s" % ex)
 
 
-def adapters():
-    """[(id, label)] - id is what the capture needs, label: description / IP / name"""
+VIRTUAL = ("wan miniport", "wi-fi direct virtual", "loopback", "kernel debug", "teredo", "isatap", "6to4",
+           "bluetooth", "hyper-v virtual", "npcap loopback")
+
+
+def adapters(show_all=False):
+    """[(id, label)] like Windows Network Connections: 'Ethernet 5  -  Realtek USB GbE ...  -  IP 172.16.1.32 (+10)'
+    id is what the capture needs; virtual adapters (WAN Miniport, Wi-Fi Direct, loopback ...) only with show_all"""
     conf = _scapy()
     out = []
     try:
@@ -36,16 +41,25 @@ def adapters():
     except Exception:
         pass
     for itf in conf.ifaces.values():
-        name = getattr(itf, "network_name", None) or getattr(itf, "name", "")
-        desc = getattr(itf, "description", "") or getattr(itf, "name", "")
-        ip = getattr(itf, "ip", "") or ""
-        mac = getattr(itf, "mac", "") or ""
-        if not name:
+        ident = getattr(itf, "network_name", None) or getattr(itf, "name", "")
+        if not ident:
             continue
-        label = "%s   |   IP %s   |   %s" % (desc, ip or "-", mac or name)
-        out.append((name, label))
-    out.sort(key=lambda x: x[1].lower())
-    return out
+        name = getattr(itf, "name", "") or ident               # Windows: 'Ethernet 5', 'Wi-Fi'
+        desc = getattr(itf, "description", "") or ""          # Windows: 'Realtek USB GbE Family Controller'
+        ips = [x for x in ((getattr(itf, "ips", {}) or {}).get(4) or []) if x and not x.startswith("169.254.")]
+        if not ips and getattr(itf, "ip", "") and not str(itf.ip).startswith("169.254."):
+            ips = [itf.ip]
+        virtual = any(v in (desc + " " + name).lower() for v in VIRTUAL) or name.startswith("Local Area Connection*")
+        if virtual and not show_all:
+            continue
+        ip = ("IP %s%s" % (ips[0], (" (+%d)" % (len(ips) - 1)) if len(ips) > 1 else "")) if ips else "no IP"
+        parts = [name]
+        if desc and desc != name:
+            parts.append(desc)
+        parts.append(ip)
+        out.append((ident, "   -   ".join(parts), virtual))
+    out.sort(key=lambda x: (x[2], x[1].lower()))
+    return [(i, l) for i, l, v in out]
 
 
 class Capture(threading.Thread):

@@ -1,7 +1,14 @@
 # CHANGELOG
 
+## v0.6.5 (2026-10-30)
+- **IED Simulator → GOOSE**: GoCB симульованого IED публікуються з тими самими значеннями і якістю, що й звіти MMS (один сигнал — одна якість); зміна сигналу → stNum + 1, повтори MinTime → MaxTime, TAL = 2 × інтервал.
+- Для кожного GoCB: **Publish** (GoEna — видно й SCADA через MMS), **Simulation** (ON за замовчуванням, OFF з попередженням), **NdsCom**; кнопка **stNum + 1**; вибір адаптера; MAC / APPID / VLAN / пріоритет / MinTime / MaxTime з CID.
+- Попередження: справжній IED має бути відключений (ті самі MAC / APPID / GoID).
+- **Adapters...**: адаптери як у Windows (Мережеві підключення): `Ethernet 5 - Realtek USB GbE Family Controller - IP 172.16.1.32 (+10)`; віртуальні (WAN Miniport, Wi-Fi Direct, loopback …) сховані, галочка *Show virtual adapters*.
+
 ## v0.6.4 (2026-10-30)
 - **MMS → Active: Export to Excel...** — .xlsx з аркушами Info, Model (усі атрибути з типом і значенням на момент експорту, посилання 61850), Data sets, Control blocks, Compare with CID; закріплений заголовок і фільтри. Без додаткових бібліотек (власний запис xlsx), requirements.txt не змінюється.
+- **Збірка — папка замість одного exe** (`--onedir`, без UPX) + zip: Defender хибно блокував саморозпакувальний exe; `build_exe.bat` і GitHub Actions роблять `IEC61850ANALYZER v0.6.4.zip`, перевірка оновлень пропонує завантажити zip.
 
 ## v0.6.3 (2026-10-30)
 - **MMS → Active: звіти через вільний RCB.** Control blocks → RCB з датасетом у стані *free* → **Enable reports** (Resv для URCB, RptEna, GI; DatSet / TrgOps / OptFlds / IntgPd не змінюються); RCB, зайняті SCADA, не чіпаються; **Disable reports**, Disconnect і закриття програми повертають RCB.

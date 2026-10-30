@@ -1,19 +1,23 @@
-IEC61850ANALYZER v0.6.4 - MMS Active: export to Excel
+IEC61850ANALYZER v0.6.5 - IED Simulator: GOOSE of the simulated IED
 
-Button 'Export to Excel...' on the tab MMS / Active: one .xlsx file with
-the IED read online.
+New tab GOOSE in the IED Simulator: the GOOSE control blocks of the
+simulated IED (CID) are published with the values of its data model.
 
-- Info: IED, IP, identity (vendor / model / revision), CID, date, PC,
-  program version
-- Model: every attribute - LD, LN, FC, DO / DA, type, value at the time
-  of the export, 61850 reference (big LNs of GE UR read level by level)
-- Data sets: data set, member number, member (61850 and MMS), FC
-- Control blocks: RCB / GoCB with state (free / reserved / in use by),
-  RptID / GoID, DatSet, ConfRev, TrgOps, OptFlds, IntgPd, BufTm, Owner,
-  MAC, APPID, VLAN
-- Compare with CID: findings (when the CID is loaded)
-- Header frozen, filter in every column
-- Own xlsx writer (xlsx_lite.py): no extra library, requirements.txt
-  unchanged; checked with Excel format readers (openpyxl, LibreOffice)
+- Same values and quality as the MMS reports (one quality per signal /
+  structure): a value or quality set by hand -> stNum + 1 and fast
+  retransmission MinTime -> MaxTime, TAL = 2 x interval
+- Per GoCB: Publish (GoEna, also visible to SCADA over MMS), Simulation
+  (ON by default, OFF only after a warning), NdsCom; button stNum + 1
+- MAC / APPID / VLAN / priority / MinTime / MaxTime from the CID (GSE),
+  network adapter as in the GOOSE Publisher
+- Warning: the real IED must be disconnected (same MAC / APPID / GoID)
+
+Adapters...: names as in Windows Network Connections ('Ethernet 5 -
+Realtek USB GbE Family Controller - IP 172.16.1.32 (+10)'); virtual
+adapters (WAN Miniport, Wi-Fi Direct, loopback ...) hidden, checkbox
+'Show virtual adapters'.
+
+Tested: frames of the F60 CID (GoCB BAY, BBP) decoded by the own GOOSE
+decoder - simulation flag, data set values, new state after a change.
 
 Author: German Ievgen - ge.scout@gevernova.com

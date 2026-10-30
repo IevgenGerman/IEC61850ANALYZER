@@ -449,3 +449,18 @@ with zipfile.ZipFile(_x) as z:
     assert "xl/worksheets/sheet2.xml" in z.namelist() and "x&lt;y" in z.read("xl/worksheets/sheet1.xml").decode()
 os.remove(_x)
 print("XLSX OK")
+
+
+# ---- GOOSE of the IED simulator: values of the data model, simulation flag
+import sim_goose as sgo
+SM3 = imd.load(_cid)
+G3 = sgo.gocbs(SM3)
+assert G3 and G3[0]["members"] and G3[0]["simulation"] and G3[0]["appid"] == 0x0F01
+G3[0].update(stnum=1, sqnum=0, t_change=1793300000.0)
+_leaf = next(k for d, i in G3[0]["members"] for k in imd.walk(imd.find(SM3, d, i)) if k["btype"] == "BOOLEAN")
+assert sgo.hits(G3[0], _leaf)
+_leaf["value"] = True
+_m = sc.decode(gp.build_frame(G3[0], "00:11:22:33:44:55", 1793300000.0, 2000), 0, 1)
+assert _m["kind"] == "GOOSE" and _m["ref"] == G3[0]["ref"] and any(d[2] == "TRUE" for d in _m["data"])
+assert ("Simulation/Test", "true") in _m["header"]
+print("SIM GOOSE OK")

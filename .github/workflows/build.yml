@@ -1,4 +1,5 @@
-# Builds "IEC61850ANALYZER <version>.exe" on Windows and attaches it to a GitHub Release
+# Builds "IEC61850ANALYZER <version>" (folder with the exe, --onedir: fewer antivirus false positives than one
+# self-extracting exe) on Windows, zips it and attaches the zip to a GitHub Release
 # when a tag like v0.2.0 is pushed:   git tag v0.2.0 && git push origin v0.2.0
 # The program checks the newest release at start (updater.py) and offers the download.
 name: build-exe
@@ -34,18 +35,19 @@ jobs:
         run: |
           $name = python exe_name.py
           echo "EXENAME=$name" >> $env:GITHUB_ENV
-          pyinstaller --clean --onefile --noupx --windowed --name "$name" --hidden-import scapy.all --collect-submodules scapy sniffer.py
+          pyinstaller --clean --onedir --noupx --windowed --name "$name" --hidden-import scapy.all --collect-submodules scapy sniffer.py
+          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip" -Force
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.EXENAME }}
-          path: "dist/${{ env.EXENAME }}.exe"
+          path: "dist/${{ env.EXENAME }}.zip"
 
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: "dist/${{ env.EXENAME }}.exe"
+          files: "dist/${{ env.EXENAME }}.zip"
           name: IEC61850ANALYZER ${{ github.ref_name }}
           body_path: COMMIT_MSG.txt

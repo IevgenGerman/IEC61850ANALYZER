@@ -24,6 +24,7 @@ from tkinter import ttk, messagebox, filedialog
 import goose_pub as gp
 import ied_model as im
 import mms_server as ms
+import sim_goose as sg
 
 GREEN = "#1a6e1a"
 RED = "#b00020"
@@ -64,6 +65,8 @@ class SimTab(ttk.Frame):
         self.events = queue.Queue()
         self.kids = {}
         self.path = None
+        self.gcbs = []                     # GOOSE of the simulated IED (sim_goose)
+        self.pub = None
         self.listen = ""
         self.summary = ""
         self.pc = []
@@ -205,6 +208,35 @@ class SimTab(ttk.Frame):
         ls.pack(side="left", fill="y")
         self.log.tag_configure("err", foreground=RED)
         self.nb.add(lgf, text="  Log  ")
+        # ---- GOOSE of the simulated IED
+        gf = ttk.Frame(self.nb)
+        gb = tk.Frame(gf)
+        gb.pack(fill="x")
+        tk.Label(gb, text="Network:").pack(side="left", padx=(4, 2))
+        self.v_gnet = tk.StringVar()
+        self.c_gnet = ttk.Combobox(gb, textvariable=self.v_gnet, state="readonly", width=34)
+        self.c_gnet.pack(side="left")
+        self.c_gnet.bind("<Button-1>", lambda e: self._fill_gnets())
+        self.b_gstart = tk.Button(gb, text="▶ Publish GOOSE", command=self.goose_start, bg="#2e7d32", fg="white",
+                                  activebackground="#1b5e20", activeforeground="white", relief="flat", padx=8)
+        self.b_gstart.pack(side="left", padx=(8, 2), pady=2)
+        ttk.Button(gb, text="■ Stop GOOSE", command=self.goose_stop).pack(side="left", padx=2)
+        ttk.Button(gb, text="stNum + 1", command=self.goose_bump).pack(side="left", padx=(8, 2))
+        self.g_lbl = tk.Label(gb, text="", fg="#666")
+        self.g_lbl.pack(side="left", padx=6)
+        tk.Label(gf, text="Same values and quality as the MMS reports.  Click the columns Publish / Simulation / "
+                          "NdsCom to switch.  The REAL IED must be disconnected: same MAC / APPID / GoID.",
+                 fg=ORANGE, anchor="w").pack(fill="x", padx=4)
+        self.gt = self._tv(self.nb, None, ("pub", "sim", "nds", "goid", "datset", "dst", "times", "st", "sent"),
+                           {"#0": ("GOOSE control block", 260), "pub": ("Publish", 60), "sim": ("Simulation", 75),
+                            "nds": ("NdsCom", 60), "goid": ("GoID", 130), "datset": ("DatSet", 230),
+                            "dst": ("MAC / APPID / VLAN / prio", 230), "times": ("Min / Max ms", 90),
+                            "st": ("stNum / sqNum", 95), "sent": ("Frames", 70)}, parent_frame=gf)
+        self.gt.tag_configure("on", foreground=GREEN)
+        self.gt.tag_configure("off", foreground=GREY)
+        self.gt.tag_configure("err", foreground=RED)
+        self.gt.bind("<Button-1>", self._g_click)
+        self.nb.add(gf, text="  GOOSE  ")
         self.nb.select(2)
         pw.bind("<Map>", lambda e: self.after(50, self._sash), add="+")
 
@@ -216,8 +248,8 @@ class SimTab(ttk.Frame):
         except tk.TclError:
             pass
 
-    def _tv(self, parent, title, cols, heads):
-        f = ttk.Frame(parent)
+    def _tv(self, parent, title, cols, heads, parent_frame=None):
+        f = ttk.Frame(parent_frame if parent_frame is not None else parent)
         tv = ttk.Treeview(f, columns=cols, show="tree headings")
         for c, (t, w) in heads.items():
             tv.heading(c, text=t, anchor="w")
@@ -230,7 +262,10 @@ class SimTab(ttk.Frame):
         hs.grid(row=1, column=0, sticky="ew")
         f.rowconfigure(0, weight=1)
         f.columnconfigure(0, weight=1)
-        parent.add(f, text=title)
+        if parent_frame is not None:
+            f.pack(fill="both", expand=True)
+        else:
+            parent.add(f, text=title)
         return tv
 
     def write_log(self, text, err=False):
@@ -260,6 +295,7 @@ class SimTab(ttk.Frame):
                                        parent=self):
                 return
             self.stop()
+        self.goose_stop(quiet=True)
         try:
             self.model = im.load(self.path, name or None)
         except Exception as ex:                 # noqa: BLE001
@@ -274,6 +310,8 @@ class SimTab(ttk.Frame):
         self._fill_ips(choose=True)
         self._fill_tree()
         self._fill_rcbs()
+        self.gcbs = sg.gocbs(M)
+        self._fill_goose()
         self.write_log("loaded %s / %s" % (M["file"], M["ied"]))
 
     # ------------------------------------------------------------ listen IP
@@ -379,6 +417,8 @@ class SimTab(ttk.Frame):
     def shutdown(self):
         if self.server:
             self.server.stop()
+        if self.pub:
+            self.pub.stop()
 
     def _tick(self):
         try:
@@ -484,6 +524,7 @@ class SimTab(ttk.Frame):
                 self._refresh_items()
                 self._fill_clients()
                 self._fill_rcbs()
+                self._fill_goose()
         except tk.TclError:
             pass
         self.after(1000, self._refresh)
@@ -643,6 +684,7 @@ class SimTab(ttk.Frame):
             n["value"] = v
         self.v_val.set(self._text_of(n))
         self._changed(n)
+        self._goose_changed(n)
         self.write_log("%s: %s -> %s%s" % (im.ref(n).replace("$", "."), old, im.value_text(n),
                                            "" if self.server else "   (server stopped: no report)"))
 
@@ -684,6 +726,7 @@ class SimTab(ttk.Frame):
             q["value"] = v
         self.q_lbl.config(text="now: %s" % gp.quality_text(v))
         self._changed(q)
+        self._goose_changed(q)
         self.write_log("%s: quality %s -> %s" % (im.ref(q).replace("$", "."), old, gp.quality_text(v)))
 
     # ------------------------------------------------------------ clients / RCBs
@@ -839,3 +882,161 @@ class IpDialog(tk.Toplevel):
         if self.on_done:
             self.on_done()
         self.destroy()
+
+
+# ---------------------------------------------------------------- GOOSE of the simulator (methods)
+def _fill_gnets(self):
+    app = self.app
+    vals = []
+    for i, iface in enumerate(getattr(app, "nets", []), 1):
+        if iface:
+            vals.append("%s  -  %s" % (app.net_name(i), (app.net_labels[i - 1] or iface)[:60]))
+    self.c_gnet["values"] = vals
+    if vals and self.v_gnet.get() not in vals:
+        self.v_gnet.set(vals[0])
+
+
+def _giface(self):
+    self._fill_gnets()
+    vals = list(self.c_gnet["values"])
+    if not vals:
+        return None
+    i = vals.index(self.v_gnet.get()) if self.v_gnet.get() in vals else 0
+    ifaces = [x for x in self.app.nets if x]
+    return ifaces[i] if i < len(ifaces) else None
+
+
+def _fill_goose(self):
+    sel = self.gt.selection()
+    self.gt.delete(*self.gt.get_children())
+    for k, g in enumerate(self.gcbs):
+        ok = bool(g["members"])
+        vals = ("☑" if g["use"] else "☐", "☑" if g["simulation"] else "☐", "☑" if g["ndscom"] else "☐",
+                g["goid"], g["datset"] or "(no data set)",
+                "%s / 0x%04X / %s / %s" % (g["mac"], g["appid"], g["vlan"] if g["vlan"] is not None else "-", g["prio"]),
+                "%d / %d" % (g["min_ms"], g["max_ms"]),
+                ("%d / %d" % (g["stnum"], g["sqnum"])) if g["active"] else "", g["sent"] if g["sent"] else "")
+        tag = "err" if g.get("error") else ("on" if g["active"] else ("off" if not ok else ""))
+        self.gt.insert("", "end", iid="g%d" % k, text=g["ref"], values=vals, tags=(tag,) if tag else ())
+    for x in sel:
+        if self.gt.exists(x):
+            self.gt.selection_set(x)
+    n = sum(1 for g in self.gcbs if g["active"])
+    self.g_lbl.config(text=("publishing %d GoCB" % n) if n else "not publishing",
+                      fg=GREEN if n else "#666")
+
+
+def _g_click(self, e):
+    iid = self.gt.identify_row(e.y)
+    col = self.gt.identify_column(e.x)
+    if not iid or not iid.startswith("g"):
+        return
+    g = self.gcbs[int(iid[1:])]
+    key = {"#1": "use", "#2": "simulation", "#3": "ndscom"}.get(col)
+    if not key:
+        return
+    if key == "use" and not g["members"]:
+        return "break"
+    if key == "simulation" and g["simulation"] and g["active"]:
+        if not messagebox.askyesno("GOOSE", "Switch the Simulation flag OFF for %s?\n\nSubscribing IEDs then take "
+                                   "these GOOSE as the real ones and WILL react." % g["ref"], icon="warning",
+                                   default="no", parent=self):
+            return "break"
+    g[key] = not g[key]
+    if key == "use" and g["active"] and not g["use"]:
+        self.pub.remove(g)
+        sg.set_goena(g, False)
+        g["active"] = False
+    elif key == "use" and g["use"] and self.pub and any(x["active"] for x in self.gcbs):
+        self._goose_add([g])
+    elif key in ("simulation", "ndscom") and g["active"] and self.pub:
+        self.pub.change(g)
+    self._fill_goose()
+    return "break"
+
+
+def goose_start(self):
+    if not self.gcbs:
+        messagebox.showinfo("GOOSE", "Load the CID of the IED first.", parent=self)
+        return
+    todo = [g for g in self.gcbs if g["use"] and not g["active"] and g["members"]]
+    if not todo:
+        messagebox.showinfo("GOOSE", "Tick the GoCBs to publish (column Publish).", parent=self)
+        return
+    iface = self._giface()
+    if not iface:
+        self.app.choose_nets()
+        iface = self._giface()
+        if not iface:
+            return
+    sim_off = [g["ref"] for g in todo if not g["simulation"]]
+    text = ("Publish %d GOOSE control block(s) of %s on\n  %s\n\n%s\n\nThe REAL IED must be disconnected from "
+            "this network (same MAC / APPID / GoID).\n\n%s\n\nStart?" % (
+                len(todo), self.model["ied"], self.v_gnet.get(),
+                "\n".join("  %s  %s  APPID 0x%04X  %s" % (g["ref"], g["mac"], g["appid"],
+                                                         "SIMULATION" if g["simulation"] else "NORMAL")
+                          for g in todo[:10]),
+                ("Simulation OFF for %d GoCB: subscribers WILL react!" % len(sim_off)) if sim_off else
+                "Simulation ON: only IEDs in simulation mode (LPHD.Sim) take these messages."))
+    if not messagebox.askyesno("GOOSE", text, icon="warning", default="no", parent=self):
+        return
+    try:
+        if self.pub is None or not self.pub.is_alive():
+            self.pub = gp.Publisher(gp.scapy_sender(), on_error=lambda g, t: g.update(error=t))
+            self.pub.on_sent = lambda g: g.update(sent=g["sent"] + 1)
+            self.pub.start()
+    except Exception as ex:                     # noqa: BLE001
+        messagebox.showerror("GOOSE", "Can not send (Npcap / Scapy):\n%s" % ex, parent=self)
+        return
+    self._goose_iface = iface
+    self._goose_add(todo)
+    self.write_log("GOOSE: publishing %d GoCB on %s" % (len(todo), self.v_gnet.get()))
+    self._fill_goose()
+
+
+def _goose_add(self, lst):
+    iface = getattr(self, "_goose_iface", None)
+    if not iface or not self.pub:
+        return
+    src = gp.adapter_mac(iface)
+    for g in lst:
+        g.pop("error", None)
+        sg.set_goena(g, True)
+        self.pub.add(g, iface, src)
+
+
+def goose_stop(self, quiet=False):
+    if self.pub:
+        for g in self.gcbs:
+            if g["active"]:
+                self.pub.remove(g)
+                sg.set_goena(g, False)
+        if not quiet:
+            self.write_log("GOOSE stopped")
+    for g in self.gcbs:
+        g["active"] = False
+    if hasattr(self, "gt"):
+        self._fill_goose()
+
+
+def goose_bump(self):
+    s = self.gt.selection()
+    if not s or not self.pub:
+        return
+    g = self.gcbs[int(s[0][1:])]
+    if g["active"]:
+        self.pub.change(g)
+        self.write_log("GOOSE %s: stNum + 1 (%d)" % (g["ref"], g["stnum"]))
+
+
+def _goose_changed(self, node):
+    if not self.pub:
+        return
+    for g in self.gcbs:
+        if g["active"] and sg.hits(g, node):
+            self.pub.change(g)
+
+
+for _f in (_fill_gnets, _giface, _fill_goose, _g_click, goose_start, _goose_add, goose_stop, goose_bump,
+           _goose_changed):
+    setattr(SimTab, _f.__name__, _f)

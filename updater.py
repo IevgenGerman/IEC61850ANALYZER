@@ -35,8 +35,11 @@ def latest(repo):
     """-> dict(tag, version tuple, url (page), exe (download url or None), notes) or None"""
     try:
         d = _get("https://api.github.com/repos/%s/releases/latest" % repo)
-        exe = next((a.get("browser_download_url") for a in d.get("assets", [])
-                    if str(a.get("name", "")).lower().endswith(".exe")), None)
+        assets = d.get("assets", [])                       # zip of the program folder (v0.6.4+) or exe
+        exe = next((a.get("browser_download_url") for a in assets
+                    if str(a.get("name", "")).lower().endswith(".zip")), None) or \
+            next((a.get("browser_download_url") for a in assets
+                  if str(a.get("name", "")).lower().endswith(".exe")), None)
         return dict(tag=d.get("tag_name", ""), version=parse_version(d.get("tag_name")),
                     url=d.get("html_url") or "https://github.com/%s/releases" % repo, exe=exe,
                     notes=(d.get("body") or "").strip())

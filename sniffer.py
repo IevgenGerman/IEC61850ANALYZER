@@ -57,7 +57,7 @@ import active_tab                # noqa: E402
 import sim_tab                   # noqa: E402
 
 APP = "IEC61850ANALYZER"
-VERSION = "v 0.6.4"
+VERSION = "v 0.6.5"
 MAX_ROWS = 50000                 # per tab; older rows are dropped
 DRAIN_PER_TICK = 4000            # messages moved from the capture queue to the view per 100 ms
 GREY = "#9a9a9a"
@@ -721,13 +721,10 @@ class NetDialog(tk.Toplevel):
         self.transient(app)
         self.resizable(True, False)
         self.result = None
-        try:
-            self.ads = cp.adapters()
-        except Exception as ex:
-            self.ads = []
-            messagebox.showerror(APP, str(ex), parent=self)
-        labels = [l for _, l in self.ads]
         st = load_settings()
+        self.v_all = tk.BooleanVar(value=False)
+        self.ads = self._load_ads(st)
+        labels = [l for _, l in self.ads]
         pad = dict(padx=10, pady=4)
         self.n1 = tk.StringVar(value=st.get("net1_name") or "Network 1")
         self.n2 = tk.StringVar(value=st.get("net2_name") or "Network 2")
@@ -756,6 +753,8 @@ class NetDialog(tk.Toplevel):
                 cb.current(ids.index(st[key]))
         if not self.c1.get() and labels:
             self.c1.current(0)
+        ttk.Checkbutton(self, text="Show virtual adapters (WAN Miniport, Wi-Fi Direct, loopback ...)",
+                        variable=self.v_all, command=self._reload).pack(fill="x", **pad)
         tk.Label(self, text="Only GOOSE and SV frames are captured. On Windows Npcap must be installed "
                             "(npcap.com, option 'WinPcap API-compatible mode').",
                  fg="#555", anchor="w", wraplength=700, justify="left").pack(fill="x", **pad)
@@ -765,6 +764,32 @@ class NetDialog(tk.Toplevel):
         ttk.Button(bf, text="OK", command=self.ok).pack(side="right", padx=6)
         self._toggle()
         self.grab_set()
+
+    def _load_ads(self, st):
+        try:
+            ads = cp.adapters(self.v_all.get())
+            if not self.v_all.get():                    # a saved virtual adapter stays in the list
+                allads = None
+                for key in ("net1", "net2"):
+                    if st.get(key) and st[key] not in [i for i, _ in ads]:
+                        allads = allads or cp.adapters(True)
+                        ads += [x for x in allads if x[0] == st[key]]
+            return ads
+        except Exception as ex:
+            messagebox.showerror(APP, str(ex), parent=self)
+            return []
+
+    def _reload(self):
+        cur = [self.ads[c.current()][0] if c.current() >= 0 else None for c in (self.c1, self.c2)]
+        self.ads = self._load_ads(load_settings())
+        labels = [l for _, l in self.ads]
+        ids = [i for i, _ in self.ads]
+        for c, x in zip((self.c1, self.c2), cur):
+            c.configure(values=labels)
+            if x in ids:
+                c.current(ids.index(x))
+            else:
+                c.set("")
 
     def _toggle(self):
         self.c2.configure(state="readonly" if self.use2.get() else "disabled")

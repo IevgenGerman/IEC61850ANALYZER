@@ -347,7 +347,10 @@ def macb(s):
 
 
 def build_frame(g, src_mac, now, tal_ms):
-    alld = b"".join(encode(n, g["t_change"]) for n in g["entries"])
+    if g.get("data_fn"):                                  # IED simulator: values of its data model
+        alld = g["data_fn"](g["t_change"])
+    else:
+        alld = b"".join(encode(n, g["t_change"]) for n in g["entries"])
     sim = g.get("simulation", True)
     pdu = (tlv(0x80, g["ref"].encode()) + tlv(0x81, ber_int(int(tal_ms))) + tlv(0x82, g["datset"].encode()) +
            tlv(0x83, g["goid"].encode()) + tlv(0x84, utc_bytes(g["t_change"])) +
