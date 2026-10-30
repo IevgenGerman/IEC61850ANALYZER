@@ -1,31 +1,36 @@
-IEC61850ANALYZER v0.6.0 - MMS Active (own MMS client, read only)
+IEC61850ANALYZER v0.6.1 - IED Simulator (MMS server from a CID)
 
-New sub tab MMS / Active: the program connects to one IED itself
-(TCP 102) and reads it. Nothing is written to the IED.
+New tab IED Simulator: the PC answers as one IED of a CID / SCD, so
+signals can be checked in SCADA (Zenon, IEDScout, ...) without the IED.
+Several clients at the same time.
 
-- Connect: IP from the CID or typed (last 10 kept), Identify (vendor,
-  model, revision), max PDU size
-- Data model tree LD / LN / FC / DO / DA (GetNameList); selecting a node
-  reads it with the names and types of the attributes; a big LN is read
-  per functional constraint
-- Monitor: selected nodes polled every 1000 ms (adjustable), last change
-  time and number of changes
-- Data sets: members of every data set, read the values of a data set;
-  the member names are given to the Passive and GOOSE tabs
-- Control blocks: every URCB / BRCB / GoCB - free / reserved /
-  IN USE by <client IP>, RptID, DatSet, ConfRev, TrgOps, OptFlds, IntgPd,
-  BufTm; GoEna, GoID, MAC / APPID / VLAN
-- Compare with CID: logical devices and nodes, data sets (members and
-  order), RCBs, GoCBs
-- Auto refresh every N ms (1000 default): Monitor, the data sets read
-  in Data sets and the node shown in Values; changed values yellow,
-  TRUE / on green, FALSE / off black
-- Log, optionally every MMS PDU
-- IEDs whose GetNameList gives only the logical nodes: members of a LN
-  from its type when the node is opened, control blocks from the type of
-  LLN0; data set values read as a list, else member by member
+- ISO stack (COTP, Session, Presentation, ACSE, MMS Initiate), Identify
+  (manufacturer / type / configVersion of the CID), GetNameList, Read
+  (variables and data sets), GetVariableAccessAttributes,
+  GetNamedVariableListAttributes, Write of RCB attributes
+- Model from the CID: LN / FC / DO / DA, values of DAI / Val, data sets,
+  report control blocks (indexed instances), GOOSE control blocks
+- Reports URCB / BRCB: reservation (Resv / ResvTms / Owner = client IP),
+  TrgOps dchg / qchg / dupd / integrity / GI, BufTm, OptFlds, buffering
+  of BRCBs while disabled (EntryID, BufOvfl, PurgeBuf)
+- Values set by hand: Set (data change), Toggle / double-click,
+  Update (data update), Quality (validity + detail bits) -> quality
+  change; the time stamp t follows
+- Find a signal, Clients, Report control blocks, Log
+- Listen IP in plain words (all addresses / this PC + adapter / IED IP
+  on this PC or not) with a hint which IP SCADA must use; button
+  'IED IP on this PC...' adds the IED IP (mask of the CID) to an adapter
+  with netsh as administrator, and removes it after the test; warning for
+  a DHCP adapter (a fixed IP switches DHCP off), Restore DHCP
+- Commands from SCADA are refused (object-access-denied)
+- Reports caused by a request (GI, BRCB buffer) are sent after its
+  response; an internal error is written to the Log instead of closing
+  the association; option Log every MMS PDU
+- ReasonCode of the reports with 6 bits (as the IEDs): with 7 bits
+  IEDScout closed the association at the first report
 
-Report test: TrgOps without the gi attribute in the CID means gi = true
-(SCL default).
+Tested with the own MMS client (Active: compare with the CID - no
+difference) and with the libiec61850 client (GI / data change reports).
+MMS client: Write (tests), close sends FIN at once.
 
 Author: German Ievgen - ge.scout@gevernova.com

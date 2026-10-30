@@ -348,3 +348,49 @@ if live:                                    # e.g. libiec61850 server_example_ba
                                                              sum(len(v) for v in om["names"].values()), len(om["rcbs"])))
 else:
     print("MMS ACTIVE OK (no local server on port 102 - live part skipped)")
+
+
+# ---- IED simulator (MMS server) <-> own MMS client: model, compare with CID, RCB, reports
+import time as _t
+import ied_model as imd
+import mms_server as msv
+_cid = os.path.join(R, "tools", "demo_ied.cid")
+SM = imd.load(_cid)
+SRV = msv.Server(SM)
+_sk = _s.socket()
+_sk.bind(("127.0.0.1", 0))
+_port = _sk.getsockname()[1]
+_sk.close()
+SRV.start("127.0.0.1", _port)
+_rep = []
+cl = mcl.MmsClient(on_unconfirmed=_rep.append)
+cl.connect("127.0.0.1", _port)
+om = ma.browse(cl)
+ma.read_datasets(cl, om)
+ma.read_cbs(cl, om)
+assert om["ident"][0] == SM["vendor"] or om["ident"][0] == "IEC61850ANALYZER"
+assert not [f for f in ma.compare(ma.cid_model(_cid), om) if f[1] == "bad"], ma.compare(ma.cid_model(_cid), om)
+rcb = om["rcbs"][0]
+D, I = rcb["domain"], rcb["item"]
+assert cl.write(D, "LLN0$ST$Mod$stVal", b"\x85\x01\x01") == "object-access-denied"
+assert cl.write(D, I + "$RptEna", b"\x83\x01\xff") is None
+assert cl.write(D, I + "$IntgPd", b"\x86\x01\x05") == "temporarily-unavailable"
+assert cl.write(D, I + "$GI", b"\x83\x01\xff") is None
+_t.sleep(0.2)
+ds_dom, ds_item = SM["datasets"][D][rcb["datset"].split("/", 1)[1]][0]
+leaf = imd.find(SM, ds_dom, ds_item)
+leaf = leaf if not leaf["kids"] else next(k for k in imd.walk(leaf) if not k["kids"] and k["btype"] == "BOOLEAN")
+SRV.set_value(leaf, True)
+_t.sleep(0.3)
+reps = [mms.parse_pdu(p).get("report") for p in _rep]
+assert reps[0]["entries"][0]["reasons"] == ["general interrogation"]
+assert any(r and r["entries"][0]["reasons"] == ["data change"] for r in reps), reps
+cl2 = mcl.MmsClient()
+cl2.connect("127.0.0.1", _port)
+assert cl2.write(D, I + "$RptEna", b"\x83\x01\xff") == "temporarily-unavailable"
+cl.close()
+_t.sleep(0.3)
+assert cl2.write(D, I + "$RptEna", b"\x83\x01\xff") is None
+cl2.close()
+SRV.stop()
+print("IED SIMULATOR OK (%d variables, %d reports)" % (sum(len(v) for v in SM["index"].values()), len(reps)))

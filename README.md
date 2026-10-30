@@ -1,4 +1,4 @@
-# IEC61850ANALYZER (GOOSE / SV / PTP / MMS / GOOSE Publisher) — v0.6.0
+# IEC61850ANALYZER (GOOSE / SV / PTP / MMS / GOOSE Publisher) — v0.6.1
 
 Програма для перегляду трафіку **GOOSE**, **Sampled Values (9-2 / 9-2LE)** і **PTP (IEEE 1588 / IEC 61850-9-3)** у мережі, за зразком вікна Sniffer в OMICRON IEDScout. Автор: German Ievgen.
 
@@ -12,7 +12,7 @@ MMS у цій версії не розбирається.
    pip install -r requirements.txt
    python sniffer.py
    ```
-   або зібрати `.exe`: двічі клацнути `build_exe.bat`. Результат: `dist\IEC61850ANALYZER v0.6.0.exe`.
+   або зібрати `.exe`: двічі клацнути `build_exe.bat`. Результат: `dist\IEC61850ANALYZER v0.6.1.exe`.
 3. Якщо адаптер не відкривається, запустіть програму від імені адміністратора.
 
 ## Вікно
@@ -98,6 +98,21 @@ MMS у цій версії не розбирається.
 8. **Log** — що зроблено і помилки; галочка *Show every MMS PDU* — кожен PDU клієнта.
 
 Перевірено з сервером libiec61850 (лише як тестовий партнер, у програму не входить).
+
+### IED Simulator (MMS-сервер одного IED з CID)
+
+Мета — перевірити сигнали в SCADA (Zenon, IEDScout …) без IED: ПК відповідає як IED з CID.
+1. **Load CID / SCD...** → IED (CID — власний IED, SCD — вибрати). Модель: логічні пристрої, LN / FC / DO / DA (DataTypeTemplates), значення з DAI / Val, датасети, RCB (екземпляри `name01`… при indexed), GoCB, Identify = manufacturer / type / configVersion з CID.
+2. **Listen IP** (у списку підписано: *all addresses of this PC*, *this PC: адаптер*, *IED … on this PC / NOT on this PC*; під кнопками — до якого IP має підключатися SCADA) / **Port** (102) → **▶ Start server**. Кнопка **IED IP on this PC...** додає IP IED з CID другою адресою вибраного адаптера (netsh, запит адміністратора) і прибирає її після тесту. SCADA підключається до IP IED з CID, тому ця адреса має бути на мережевій карті ПК: *Панель керування → Мережеві підключення → адаптер → IPv4 → Властивості → Додатково → IP-адреси → Додати* (наприклад 10.0.0.24 / 255.255.255.0). Або Listen IP 0.0.0.0 і в SCADA вказати IP ПК. Windows може спитати дозвіл брандмауера — дозволити.
+3. **Дерево моделі** — значення всіх сигналів (TRUE / on зеленим, погана якість червоним), **Find** — пошук за назвою (`UsrPbIHMI1` або `Ind1.stVal`).
+4. **Signal** — вибраний сигнал (для DO — stVal / general / mag.f і його q):
+   - **Value** + **Set** → звіт *data change*; **Toggle** (або подвійний клік у дереві) для BOOLEAN / Dbpos; **Update (same value)** → *data update*;
+   - **Quality**: validity + біти (test, oldData, failure …) → **Set quality** → *quality change*;
+   - час `t` сигналу оновлюється сам.
+5. **Звіти**: клієнти (SCADA) самі вмикають RCB: Resv / ResvTms, RptEna, TrgOps, OptFlds, IntgPd, BufTm, DatSet, GI, PurgeBuf, EntryID. Причини: dchg, qchg, dupd, integrity (IntgPd), GI. BRCB буферизує події, поки вимкнений (EntryID, BufOvfl), і віддає їх при RptEna. Один RCB — один клієнт (іншому — temporarily-unavailable); при відключенні клієнта RCB звільняється.
+6. Вкладки **Clients** (хто підключений, запити, звіти), **Report control blocks** (free / reserved by IP / enabled by IP, RptID, DatSet, TrgOps, SqNum, кількість звітів), **Log**.
+
+Обмеження: команди SCADA (Select / Operate) і запис значень відхиляються (object-access-denied); GOOSE не публікується (є GOOSE Publisher); файли, журнали, групи уставок не підтримуються. RCB без датасету в CID (GE UR) — DatSet порожній, SCADA може записати свій.
 
 ### MMS → Report test (перевірка звітів IED за CID)
 
@@ -192,6 +207,7 @@ MMS у цій версії не розбирається.
 | `rpt_test.py`, `rpt_tab.py` | MMS Report test: перевірка звітів за CID, покриття, json, CSV |
 | `mms_client.py` | MMS-клієнт: ISO-стек, Initiate, GetNameList, Read, типи, датасети |
 | `mms_active.py`, `active_tab.py` | MMS Active: модель IED, RCB / GoCB, порівняння з CID, вкладка |
+| `ied_model.py`, `mms_server.py`, `sim_tab.py` | IED Simulator: модель з CID, MMS-сервер, звіти, вкладка |
 | `goose_pub.py`, `pub_tab.py` | GOOSE Publisher: SCL → кадри, відправка, вкладка |
 | `tools/demo_ied.cid` | демо-CID для тестів публікатора і MMS (синтетичний: IP 192.168.1.20, ReportControl urcbA) |
 | `.github/workflows/build.yml` | збірка exe і реліз на GitHub за тегом `v*` |

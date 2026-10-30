@@ -22,6 +22,8 @@ its CID and every signal / reason ticked off. MMS / Active: our own MMS client (
 the data model, read, monitor, data sets, RCB / GoCB (free / in use by whom), compare with the CID.
 Tab GOOSE Publisher: simulation of GOOSE from CID / SCD (values set by hand, Simulation flag ON
 by default).
+Tab IED Simulator: MMS server of one IED from its CID (SCADA test without the IED): values and
+quality set by hand, reports (URCB / BRCB) with the reasons.
 SV tab, panel Phasors: RMS / angle / frequency of the selected stream (primary; secondary when
 the stream matches an SV control block of the loaded SCD / CID). Filters...: display filter.
 Needs: Python 3, scapy (pip install scapy), on Windows Npcap (https://npcap.com).
@@ -52,9 +54,10 @@ import pub_tab                   # noqa: E402
 import mms                       # noqa: E402
 import rpt_tab                   # noqa: E402
 import active_tab                # noqa: E402
+import sim_tab                   # noqa: E402
 
 APP = "IEC61850ANALYZER"
-VERSION = "v 0.6.0"
+VERSION = "v 0.6.1"
 MAX_ROWS = 50000                 # per tab; older rows are dropped
 DRAIN_PER_TICK = 4000            # messages moved from the capture queue to the view per 100 ms
 GREY = "#9a9a9a"
@@ -1159,6 +1162,8 @@ class App(tk.Tk):
         self.nb.add(mf, text="  MMS  ")
         self.pub_tab = pub_tab.PublisherTab(self.nb, self)
         self.nb.add(self.pub_tab, text="  GOOSE Publisher  ")
+        self.sim_tab = sim_tab.SimTab(self.nb, self, load_settings(), save_settings)
+        self.nb.add(self.sim_tab, text="  IED Simulator  ")
         self.status = tk.StringVar()
         tk.Label(self, textvariable=self.status, anchor="w", bg="#2b2f36", fg="white", padx=8).pack(fill="x", side="bottom")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -1467,6 +1472,10 @@ class App(tk.Tk):
             pass
         try:
             self.act_tab.shutdown()
+        except Exception:
+            pass
+        try:
+            self.sim_tab.shutdown()
         except Exception:
             pass
         self.stop()

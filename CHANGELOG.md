@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## v0.6.1 (2026-10-30)
+- Нова вкладка **IED Simulator** — MMS-сервер одного IED з CID / SCD для перевірки сигналів у SCADA без IED (кілька клієнтів одночасно):
+  - ISO-стек (COTP / Session / Presentation / ACSE / MMS Initiate), Identify (manufacturer / type / configVersion з CID), GetNameList, Read (змінні і датасети), GetVariableAccessAttributes, GetNamedVariableListAttributes, Write атрибутів RCB;
+  - модель з CID: LN / FC / DO / DA, значення DAI / Val, датасети, RCB (екземпляри при indexed), GoCB;
+  - **звіти** URCB / BRCB: резервування (Resv / ResvTms / Owner = IP клієнта), TrgOps dchg / qchg / dupd / integrity / GI, BufTm, OptFlds, BRCB буфер (EntryID, BufOvfl, PurgeBuf);
+  - значення **вручну**: Set (data change), Toggle / подвійний клік, Update (data update), Quality (validity + біти) → quality change; t оновлюється;
+  - пошук сигналу, таблиці Clients / Report control blocks, Log;
+  - **Listen IP** з поясненнями: 0.0.0.0 (усі адреси ПК), адреси ПК з назвою адаптера, IP IED з CID («on this PC» / «NOT on this PC»); підказка, до якого IP має підключатися SCADA; за замовчуванням — IP IED, якщо він є на ПК, інакше 0.0.0.0;
+  - **IED IP on this PC...** — додати IP IED (маска з CID) другою адресою адаптера (netsh від імені адміністратора) і прибрати після тесту; адаптер з DHCP (інтернет) — попередження, бо фіксований IP вимикає DHCP; **Restore DHCP** повертає автоматичну адресу і DNS (Remove IP робить це сам, якщо адаптер був на DHCP);
+  - команди SCADA не приймаються (object-access-denied);
+  - звіти, викликані запитом (GI, буфер BRCB), надсилаються після відповіді на запит; внутрішня помилка не розриває з'єднання, а пишеться в Log (з текстом для розбору); опція **Log every MMS PDU**;
+  - підказка з адресами ПК, згрупованими за адаптером (Wi-Fi: …; Ethernet 5: …);
+  - ReasonCode у звітах — 6 біт (як у IED і libiec61850): з 7 бітами IEDScout розривав з'єднання при першому звіті.
+- Перевірено з власним клієнтом (Active: порівняння з CID — без відмінностей) і з клієнтом libiec61850 (звіти GI / data change).
+- MMS client: Write (для тестів), закриття з'єднання надсилає FIN одразу.
+
 ## v0.6.0 (2026-10-30)
 - Нова вкладка **MMS → Active** — власний MMS-клієнт (лише читання, одне з'єднання, нічого не записує в IED):
   - **Connect** за IP (з CID або вручну, останні 10 IP запам'ятовуються): COTP / Session / Presentation / ACSE / MMS Initiate, Identify (виробник, модель, версія), max PDU;
