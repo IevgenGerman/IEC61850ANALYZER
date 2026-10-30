@@ -295,3 +295,56 @@ RT3.feed(dyn)
 assert "DEMO_IEDLD0/LLN0$TT3DataSet01" in RT3.dyn and RT3.info["datasets"]["DEMO_IEDLD0/LLN0$TT3DataSet01"][3]["name"].endswith("UsrPbIHMI3.Activated [ST]")
 assert any("not in the CID" in x for x in RT3.issues)
 print("REPORT TEST OK")
+
+
+# ---- MMS Active: CID model, control block decoding, compare (offline) + live client if a server runs
+import mms_active as ma
+import mms_client as mcl
+cid = ma.cid_model(os.path.join(R, "tools", "demo_ied.cid"))
+assert cid["ied"] == "DEMO_IED" and cid["ips"] == ["192.168.1.20"] and "DEMO_IEDLD0" in cid["lds"]
+assert cid["rcbs"][0]["trgops"] == ["dchg", "qchg", "period", "gi"] and cid["gocbs"][0]["appid"] == 0x0F01
+assert len(cid["datasets"]["DEMO_IEDLD0/LLN0$DS1"]) == 6
+om = ma.new_model()
+om["lds"] = {d: list(v) for d, v in cid["lds"].items()}
+om["dsnames"] = {"DEMO_IEDLD0": ["LLN0$DS1"]}
+om["datasets"] = {"DEMO_IEDLD0/LLN0$DS1": list(cid["datasets"]["DEMO_IEDLD0/LLN0$DS1"])}
+r0 = dict(cid["rcbs"][0], ref="DEMO_IEDLD0/LLN0$RP$urcbA01", name="urcbA01", rptena="TRUE", resv="FALSE",
+          owner="192.168.1.10", optflds=[], intgpd="5000", confrev="1")
+g0 = dict(cid["gocbs"][0], ref="DEMO_IEDLD0/LLN0$GO$GCB1", goena="TRUE", appid="3841", vlan="101", confrev="3")
+om.update(rcbs=[r0], gocbs=[g0], cbs_read=True)
+F = ma.compare(cid, om)
+assert not [f for f in F if f[1] == "bad"], F
+assert ma.in_use(r0) == "IN USE - enabled by 192.168.1.10"
+om["datasets"]["DEMO_IEDLD0/LLN0$DS1"].pop()
+om["rcbs"][0] = dict(r0, intgpd="2000", datset="DEMO_IEDLD0/LLN0$DSX")
+om["gocbs"][0] = dict(g0, appid="3842")
+bad = [f[2] for f in ma.compare(cid, om) if f[1] == "bad"]
+assert any("members differ - CID 6, IED 5" in x for x in bad) and any("IntgPd IED 2000" in x for x in bad)
+assert any("DatSet IED DEMO_IEDLD0/LLN0$DSX" in x for x in bad) and any("APPID IED 0x0F02" in x for x in bad), bad
+assert ma.bit_names(b"\x02\x7c", ma.TRG_BITS) == ["dchg", "qchg", "dupd", "period", "gi"]
+assert ma.owner_text(b"\x0a\x00\x00\x05") == "10.0.0.5" and ma.owner_text(b"\x00" * 4) == ""
+assert ma.compact([("X.ST.Ind1", "Structure", "", None), ("X.ST.Ind1.stVal", "Boolean", "TRUE", b"\x01"),
+                   ("X.ST.Ind1.q", "Quality", "0000000000000  (good)", b"")]) == "stVal=TRUE   q=good"
+assert ma.state_of([("X.ST.Ind1", "Structure", "", None), ("X.ST.Ind1.stVal", "Boolean", "TRUE", b"")]) is True
+assert ma.state_of([("X.ST.Pos.stVal", "Dbpos", "off (01)", b"")]) is False
+assert ma.state_of([("X.ST.Op", "Structure", "", None), ("X.ST.Op.general", "Boolean", "TRUE", b""),
+                    ("X.ST.Op.phsA", "Boolean", "FALSE", b"")]) is True
+assert ma.state_of([("X.MX.A.mag.f", "Float", "1.0", b"")]) is None
+import socket as _s
+try:
+    _s.create_connection(("127.0.0.1", 102), timeout=0.3).close()
+    live = True
+except OSError:
+    live = False
+if live:                                    # e.g. libiec61850 server_example_basic_io
+    c = mcl.MmsClient()
+    c.connect("127.0.0.1")
+    om = ma.browse(c)
+    ma.read_datasets(c, om)
+    ma.read_cbs(c, om)
+    assert om["lds"] and om["rcbs"]
+    c.close()
+    print("MMS ACTIVE OK (live: %s, %d variables, %d RCB)" % (" / ".join(om["ident"]),
+                                                             sum(len(v) for v in om["names"].values()), len(om["rcbs"])))
+else:
+    print("MMS ACTIVE OK (no local server on port 102 - live part skipped)")

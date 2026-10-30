@@ -18,7 +18,8 @@ Tab PTP: IEEE 1588 / IEC 61850-9-3 messages (Ethernet 0x88F7 and UDP 319 / 320),
 grandmaster by BMCA, announced clocks, warnings, check against IEC 61850-9-3.
 Tab MMS / Passive: MMS between SCADA and IEDs (TCP 102, mirror port / TAP / capture file): read,
 write, reports with reasons, control errors. MMS / Report test: reports of one IED checked against
-its CID and every signal / reason ticked off. MMS / Active (MMS client): later.
+its CID and every signal / reason ticked off. MMS / Active: our own MMS client (read only): browse
+the data model, read, monitor, data sets, RCB / GoCB (free / in use by whom), compare with the CID.
 Tab GOOSE Publisher: simulation of GOOSE from CID / SCD (values set by hand, Simulation flag ON
 by default).
 SV tab, panel Phasors: RMS / angle / frequency of the selected stream (primary; secondary when
@@ -50,9 +51,10 @@ import updater                   # noqa: E402
 import pub_tab                   # noqa: E402
 import mms                       # noqa: E402
 import rpt_tab                   # noqa: E402
+import active_tab                # noqa: E402
 
 APP = "IEC61850ANALYZER"
-VERSION = "v 0.5.0"
+VERSION = "v 0.6.0"
 MAX_ROWS = 50000                 # per tab; older rows are dropped
 DRAIN_PER_TICK = 4000            # messages moved from the capture queue to the view per 100 ms
 GREY = "#9a9a9a"
@@ -1152,14 +1154,8 @@ class App(tk.Tk):
         self.mms_nb.add(self.tabs["MMS"], text="  Passive  ")
         self.rpt_tab = rpt_tab.ReportTestTab(self.mms_nb, self)
         self.mms_nb.add(self.rpt_tab, text="  Report test  ")
-        act = ttk.Frame(self.mms_nb)
-        tk.Label(act, text="Active MMS client (read only) - planned:\n\n"
-                           "  - connect to an IED (IP), browse the data model\n"
-                           "  - read values (GetDataValues)\n"
-                           "  - reports only through a free report control block (not the one of SCADA)\n\n"
-                           "No write / control.", justify="left", anchor="nw", padx=20, pady=20,
-                 font=("Segoe UI", 10)).pack(fill="both", expand=True)
-        self.mms_nb.add(act, text="  Active (later)  ")
+        self.act_tab = active_tab.ActiveTab(self.mms_nb, self, load_settings(), save_settings)
+        self.mms_nb.add(self.act_tab, text="  Active  ")
         self.nb.add(mf, text="  MMS  ")
         self.pub_tab = pub_tab.PublisherTab(self.nb, self)
         self.nb.add(self.pub_tab, text="  GOOSE Publisher  ")
@@ -1467,6 +1463,10 @@ class App(tk.Tk):
     def on_close(self):
         try:
             self.pub_tab.stop_all()
+        except Exception:
+            pass
+        try:
+            self.act_tab.shutdown()
         except Exception:
             pass
         self.stop()

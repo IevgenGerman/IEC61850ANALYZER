@@ -141,7 +141,8 @@ def load_ied(path, ied_name=None):
                 of = rc.find(q("OptFields"))
                 re_ = rc.find(q("RptEnabled"))
                 buffered = rc.get("buffered") == "true"
-                trg = {k for k in ("dchg", "qchg", "dupd", "period", "gi") if tr is not None and tr.get(k) == "true"}
+                trg = {k for k in ("dchg", "qchg", "dupd", "period", "gi")      # SCL: gi default true
+                       if tr is not None and tr.get(k, "true" if k == "gi" else "false") == "true"}
                 rcbs.append(dict(
                     name=rc.get("name", ""), ld=ldi, ln=lnn, dataset=dsref, buffered=buffered,
                     rptid=rc.get("rptID") or "", confrev=int(rc.get("confRev") or 0),

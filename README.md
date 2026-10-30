@@ -1,4 +1,4 @@
-# IEC61850ANALYZER (GOOSE / SV / PTP / MMS / GOOSE Publisher) — v0.5.0
+# IEC61850ANALYZER (GOOSE / SV / PTP / MMS / GOOSE Publisher) — v0.6.0
 
 Програма для перегляду трафіку **GOOSE**, **Sampled Values (9-2 / 9-2LE)** і **PTP (IEEE 1588 / IEC 61850-9-3)** у мережі, за зразком вікна Sniffer в OMICRON IEDScout. Автор: German Ievgen.
 
@@ -12,7 +12,7 @@ MMS у цій версії не розбирається.
    pip install -r requirements.txt
    python sniffer.py
    ```
-   або зібрати `.exe`: двічі клацнути `build_exe.bat`. Результат: `dist\IEC61850ANALYZER v0.5.0.exe`.
+   або зібрати `.exe`: двічі клацнути `build_exe.bat`. Результат: `dist\IEC61850ANALYZER v0.6.0.exe`.
 3. Якщо адаптер не відкривається, запустіть програму від імені адміністратора.
 
 ## Вікно
@@ -82,7 +82,22 @@ MMS у цій версії не розбирається.
 - **LastApplError** — невдале керування: CntrlObj, Error, Origin, ctlNum, **AddCause** людською мовою (Blocked-by-interlocking, Blocked-by-Mode …), червоним.
 - TCP збирається з сегментів (довгі звіти / відповіді), повтори ігноруються; пропуск у захопленні — рядок «Capture gap», далі синхронізація.
 - Зашифрований MMS (TLS, IEC 62351, порт 3782) прочитати неможливо.
-- **Active** (MMS-клієнт лише для читання: модель, значення, звіти через вільний RCB) — пізніше.
+- **Active** — власний MMS-клієнт, див. нижче.
+
+### MMS → Active (MMS-клієнт, лише читання)
+
+Програма сама підключається до IED (TCP 102, одне з'єднання) і **нічого в IED не записує** (без SetRCBValues, без керування).
+1. (необов'язково) **Load CID / SCD...** → IED: IP-адреси IED у списку IP і модель для порівняння.
+2. **IP**, **Port** (102) → **Connect**. Одразу читається модель: логічні пристрої, усі змінні (GetNameList), датасети. У рядку стану — виробник / модель / версія (Identify) і max PDU.
+3. **Дерево моделі** LD → LN → FC (ST status, MX measurands, CO, CF, DC …) → DO → DA. Вибір вузла = читання (GetDataValues) у вкладці **Values** з назвами атрибутів, типами, quality людською мовою. Великий LN, який не вміщується в PDU, читається по FC. Правий клік — Read, Add to monitor, копіювати посилання (MMS `LD/LN$FC$DO` або 61850 `LD/LN.DO [FC]`).
+4. **Auto refresh every … ms** (за замовчуванням 1000, мін. 200) — автоматичне оновлення Monitor, датасетів, прочитаних на вкладці Data sets, і вузла у Values. TRUE / on — зеленим, FALSE / off — чорним, змінене значення — жовтим.
+   **Monitor** — подвійний клік або **Add to monitor**: вузол перечитується з тим самим інтервалом. Значення одним рядком (`stVal=TRUE   q=good   t=…`), час останньої зміни, кількість змін; змінені рядки жовті.
+5. **Data sets** — склад кожного датасету (GetNamedVariableListAttributes) і **Read values of the selected data set**. Назви елементів передаються вкладкам Passive і GOOSE («(from MMS)»).
+6. **Read control blocks** — усі URCB / BRCB / GoCB: **State** — *free*, *reserved by IP*, *IN USE - enabled by IP* (Owner — IP клієнта, що зайняв RCB, напр. SCADA), *publishing / disabled* для GoCB; RptID / GoID, DatSet, ConfRev, TrgOps, OptFlds, IntgPd, BufTm, MAC / APPID / VLAN.
+7. **Compare with CID** — логічні пристрої і вузли, датасети (склад і порядок, по елементах), RCB (RptID, DatSet, ConfRev, TrgOps, IntgPd; екземпляри `name01`, `name02` …), GoCB (GoID, DatSet, ConfRev, MAC, APPID, VLAN). Зелене — збігається, червоне — відмінність. Датасети, яких немає в CID (налаштовані в IED, GE UR), — сірим як інформація.
+8. **Log** — що зроблено і помилки; галочка *Show every MMS PDU* — кожен PDU клієнта.
+
+Перевірено з сервером libiec61850 (лише як тестовий партнер, у програму не входить).
 
 ### MMS → Report test (перевірка звітів IED за CID)
 
@@ -175,6 +190,8 @@ MMS у цій версії не розбирається.
 | `updater.py` | перевірка нової версії на GitHub |
 | `mms.py` | пасивний розбір MMS: TCP, ISO-стек, MMS, звіти 61850 |
 | `rpt_test.py`, `rpt_tab.py` | MMS Report test: перевірка звітів за CID, покриття, json, CSV |
+| `mms_client.py` | MMS-клієнт: ISO-стек, Initiate, GetNameList, Read, типи, датасети |
+| `mms_active.py`, `active_tab.py` | MMS Active: модель IED, RCB / GoCB, порівняння з CID, вкладка |
 | `goose_pub.py`, `pub_tab.py` | GOOSE Publisher: SCL → кадри, відправка, вкладка |
 | `tools/demo_ied.cid` | демо-CID для тестів публікатора і MMS (синтетичний: IP 192.168.1.20, ReportControl urcbA) |
 | `.github/workflows/build.yml` | збірка exe і реліз на GitHub за тегом `v*` |

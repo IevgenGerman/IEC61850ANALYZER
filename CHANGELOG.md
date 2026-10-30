@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## v0.6.0 (2026-10-30)
+- Нова вкладка **MMS → Active** — власний MMS-клієнт (лише читання, одне з'єднання, нічого не записує в IED):
+  - **Connect** за IP (з CID або вручну, останні 10 IP запам'ятовуються): COTP / Session / Presentation / ACSE / MMS Initiate, Identify (виробник, модель, версія), max PDU;
+  - **дерево моделі** LD → LN → FC → DO → DA (GetNameList), вибір вузла = читання з назвами атрибутів і типами (GetVariableAccessAttributes + GetDataValues); великий LN читається по FC;
+  - **Monitor**: опитування вибраних вузлів кожні 1000 мс (налаштовується), час останньої зміни, кількість змін;
+  - **Data sets**: склад усіх датасетів і читання значень датасету; назви передаються вкладкам Passive і GOOSE;
+  - **Control blocks**: усі URCB / BRCB / GoCB — free / reserved / IN USE by IP-клієнта (Owner), RptID, DatSet, ConfRev, TrgOps, OptFlds, IntgPd, BufTm; GoEna, GoID, MAC / APPID / VLAN;
+  - **Compare with CID**: LD / LN, датасети (склад і порядок), RCB, GoCB — відмінності червоним;
+  - **Log** з опцією показу кожного MMS PDU;
+  - IED, які в GetNameList віддають лише логічні вузли (без DO / DA), — члени LN беруться з типу LN (GetVariableAccessAttributes) при розкритті вузла, RCB / GoCB — з типу LLN0;
+  - значення датасету: читання датасету цілком, а якщо IED відмовляє — по елементах (по 20 у запиті); подвійний клік на датасеті = читання;
+  - **Auto refresh every … ms** (за замовчуванням 1000): автоматично оновлюються Monitor, прочитані датасети (вкладка Data sets) і вузол у Values (на місці, дерево не згортається); змінене значення — жовтим;
+  - **TRUE / on — зеленим**, FALSE / off — чорним (Values, Monitor, Data sets; для DO — за stVal або general).
+- Report test: TrgOps у CID без атрибута `gi` тепер означає gi = true (значення за замовчуванням SCL).
+
 ## v0.5.0 (2026-10-30)
 - Нова вкладка **MMS → Report test** — перевірка звітів одного IED за його CID (пасивно, з трафіку SCADA або з pcap):
   - **CID check**: RptID ↔ ReportControl, DatSet, ConfRev, кількість елементів датасету, data reference (назви), типи значень (DataTypeTemplates), причини ↔ TrgOps, OptFlds ↔ OptFields, звіти RCB, яких немає в CID;

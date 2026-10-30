@@ -1,24 +1,31 @@
-IEC61850ANALYZER v0.5.0 - MMS Report test (RCB test against the CID)
+IEC61850ANALYZER v0.6.0 - MMS Active (own MMS client, read only)
 
-New sub tab MMS / Report test: the reports of one IED are checked
-against its CID while SCADA (or a capture file) delivers them.
+New sub tab MMS / Active: the program connects to one IED itself
+(TCP 102) and reads it. Nothing is written to the IED.
 
-- CID check: RptID -> ReportControl, DatSet, ConfRev, number of data set
-  entries, data references, types of the values (DataTypeTemplates),
-  reasons allowed by TrgOps, OptFlds against OptFields, reports of RCBs
-  that are not in the CID
-- Coverage of every signal of the report data sets: data change,
-  quality change, data update, integrity, general interrogation (first
-  time, count), last value. Possible reasons = TrgOps of the RCB and the
-  trigger options of the attribute in the CID, else n/a
-- BOOLEAN / Dbpos: data change needs both states (TRUE / FALSE, on / off);
-  the minimum time between two opposite states is shown
-- Required for "completed" (default): data change, GI, integrity;
-  quality change and data update optional. Counted per data set (any
-  RCB instance)
-- "RCB test completed - all signals verified - <date time>"
-- Save / open the test (.json, auto save every 30 s), export CSV (Excel)
-- RCBs without a data set in the CID (data sets configured in the IED,
-  e.g. GE UR): tested with the data set seen in the traffic
+- Connect: IP from the CID or typed (last 10 kept), Identify (vendor,
+  model, revision), max PDU size
+- Data model tree LD / LN / FC / DO / DA (GetNameList); selecting a node
+  reads it with the names and types of the attributes; a big LN is read
+  per functional constraint
+- Monitor: selected nodes polled every 1000 ms (adjustable), last change
+  time and number of changes
+- Data sets: members of every data set, read the values of a data set;
+  the member names are given to the Passive and GOOSE tabs
+- Control blocks: every URCB / BRCB / GoCB - free / reserved /
+  IN USE by <client IP>, RptID, DatSet, ConfRev, TrgOps, OptFlds, IntgPd,
+  BufTm; GoEna, GoID, MAC / APPID / VLAN
+- Compare with CID: logical devices and nodes, data sets (members and
+  order), RCBs, GoCBs
+- Auto refresh every N ms (1000 default): Monitor, the data sets read
+  in Data sets and the node shown in Values; changed values yellow,
+  TRUE / on green, FALSE / off black
+- Log, optionally every MMS PDU
+- IEDs whose GetNameList gives only the logical nodes: members of a LN
+  from its type when the node is opened, control blocks from the type of
+  LLN0; data set values read as a list, else member by member
+
+Report test: TrgOps without the gi attribute in the CID means gi = true
+(SCL default).
 
 Author: German Ievgen - ge.scout@gevernova.com
